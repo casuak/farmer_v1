@@ -41,23 +41,34 @@ export function createFarmer(scene:Scene,shadow:ShadowGenerator) {
     const elbow=new TransformNode("farmer-elbow",scene);elbow.parent=arm;elbow.position.y=-.235;
     const forearm=new Voxels().box(0,-.105,0,.15,.23,.18,"#e8b68b").build("farmer-forearm",scene,mat);forearm.parent=elbow;shadow.addShadowCaster(forearm);elbows.push(elbow);limbs.push(arm);
   }
-  let phase=0,amount=0;
-  function animate(time:number,dt:number,moving:boolean,running:boolean,aboard:boolean,action:number,motion:boolean,held:HandItem|null=null){
+  let phase=0,amount=0,aimWeight=0;
+  function animate(time:number,dt:number,moving:boolean,running:boolean,aboard:boolean,action:number,motion:boolean,held:HandItem|null=null,aim:{movementYaw:number}|null=null){
     amount+=((moving?1:0)-amount)*(1-Math.exp(-15*dt));
+    const aiming=held==="pistol"&&!aboard&&(!!aim||action>0);
+    aimWeight+=((aiming?1:0)-aimWeight)*(1-Math.exp(-22*dt));
     const previousStep=Math.floor(phase/Math.PI);
     if(moving)phase+=dt*(running?16:10);
     const pose=locomotionPose(phase,amount,running,aboard);
+    // The torso follows the cursor; feet keep stepping along the travel direction.
+    const relative=aiming&&aim?aim.movementYaw-body.rotation.y:0,forward=Math.cos(relative),side=Math.sin(relative);
     body.position.y=motion?pose.bob+Math.sin(time*2)*.008:0;
-    body.rotation.x=pose.lean;
-    limbs[0].rotation.x=pose.leftLeg;limbs[1].rotation.x=pose.rightLeg;
+    body.rotation.x=pose.lean*forward;body.rotation.z=-pose.lean*side;
+    limbs[0].rotation.x=pose.leftLeg*forward;limbs[1].rotation.x=pose.rightLeg*forward;
+    limbs[0].rotation.z=-pose.leftLeg*side;limbs[1].rotation.z=-pose.rightLeg*side;
     limbs[2].rotation.x=pose.leftArm;limbs[3].rotation.x=pose.rightArm;
     limbs[3].rotation.y=0;limbs[3].rotation.z=0;
     elbows.forEach(e=>e.rotation.x=pose.elbow);
+    if(!aboard){
+      // Blend the aiming arm over locomotion, compensating for the running lean.
+      limbs[3].rotation.x+=(1.24-body.rotation.x-limbs[3].rotation.x)*aimWeight;
+      limbs[3].rotation.z=-body.rotation.z*aimWeight;
+      elbows[1].rotation.x+=(.20-elbows[1].rotation.x)*aimWeight;
+    }
     if(aboard){body.position.y=-.12;limbs[2].rotation.x=limbs[3].rotation.x=.40+(moving?Math.sin(time*5)*.30:0);}
     if(action>0&&!aboard){
       const progress=Math.max(0,1-action/(held==="pistol"?.22:.43)),swing=Math.sin(progress*Math.PI);
       if(held==="scythe"||held==="sword"){limbs[3].rotation.x=1.05;limbs[3].rotation.y=-.9+progress*1.8;limbs[3].rotation.z=-.22;elbows[1].rotation.x=.30;body.rotation.x-=swing*.06;}
-      else if(held==="pistol"){limbs[3].rotation.x=1.24+swing*.18;elbows[1].rotation.x=.20;}
+      else if(held==="pistol"){limbs[3].rotation.x=1.24-body.rotation.x+swing*.18;limbs[3].rotation.z=-body.rotation.z;elbows[1].rotation.x=.20;}
       else{limbs[3].rotation.x=swing*1.65;elbows[1].rotation.x=.2;body.rotation.x-=swing*.1;}
     }
     return moving&&!aboard&&Math.floor(phase/Math.PI)!==previousStep;

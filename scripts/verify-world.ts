@@ -20,6 +20,7 @@ import { verifyWildlife } from "./verify-wildlife";
 import { verifyAudio } from "./verify-audio";
 import { verifyRiverFish } from "./verify-river-fish";
 import { verifyActions } from "./verify-actions";
+import { verifyCombatFeedback,verifyMovingShooting } from "./verify-combat-feedback";
 
 await verifyRendering();
 verifyWildlife();
@@ -60,6 +61,8 @@ verifyExpansion(scene,w,lighting);
 verifyDaylight(scene,camera,w,lighting);
 verifyShadowAndLamps(scene,w,lighting);
 verifyActions(scene,w,shadow);
+verifyCombatFeedback(scene,shadow);
+verifyMovingShooting(scene,shadow);
 
 const farm=new FarmModel(w.tiles,w.clearReach),target={x:-4,z:-4},player={...SPAWN};
 assert.equal(farm.get(-8,7)!.kind,"building");assert.equal(farm.get(9,5)!.kind,"water");assert.equal(farm.get(-9,-4)!.kind,"dirt");

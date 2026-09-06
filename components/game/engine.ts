@@ -10,7 +10,7 @@ import { Ray } from "@babylonjs/core/Culling/ray";
 import { buildWorld } from "./world";
 import { FarmModel,worldToTile,sweepTiles,type TileInfo,type TileKind,type Point } from "./farming";
 import { createFarmView,createHeldTools } from "./farmView";
-import { WALK_SPEED,SPRINT_SPEED,MovementMode,moveWithCollisions } from "./movement";
+import { WALK_SPEED,SPRINT_SPEED,MovementMode,moveWithCollisions,movementVector } from "./movement";
 import { createSpringLighting } from "./lighting";
 import { createFarmer } from "./character";
 import { InventoryModel,ITEMS,type ItemId,type InventorySnapshot,type InventoryResult } from "./inventory";
@@ -76,7 +76,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   canvas.dataset.renderMode="standard";canvas.dataset.renderStatus="loading";
   let settings:GameSettings={zoom:140,shadows:true,motion:!window.matchMedia("(prefers-reduced-motion: reduce)").matches,occlusion:true,grid:true,bloom:true,timeScale:1,sound:true,volume:.55};
   let renderedZoom=settings.zoom;
-  let t=0,statusClock=0,stepClock=0,paddleClock=0,dustIndex=0,lastMoving=false,desiredYaw=-.7;
+  let t=0,statusClock=0,stepClock=0,paddleClock=0,dustIndex=0,lastMoving=false,desiredYaw=-.7,movementYaw=-.7;
   let mouse:{x:number;y:number}|null=null,aimPoint:Point|null=null,hovered:{coord:Point;override?:TileKind}|null=null,actionCooldown=0,actionTime=0,hoverClock=0;
   const tracked=new Vector3(SPAWN.x,0,SPAWN.z+1.4),directionToCamera=new Vector3(.5,Math.SQRT1_2,-.5);
   const clearInput=()=>{keys.clear();mode.release();audio.stop();paddleClock=0;};
@@ -132,7 +132,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
       if(info){info.actionable=area?area.some(t=>t.actionable):!!targetInfo?.actionable;info.hint=area?"左键朝鼠标挥扫 · 收获高亮的三格成熟作物":target.x!==coord.x||target.z!==coord.z?`左键操作身边的高亮地块 · ${targetInfo?.hint.replace("左键","")??""}`:targetInfo?.hint??info.hint;}
     }else{
       farmView.hover(null);
-      if(info){info.actionable=weapon&&!boat.aboard;info.hint=boat.aboard?"WASD 驾船 · 靠岸按 E 下船":weapon?`左键朝鼠标${bag.hand==="pistol"?"射击":"挥剑"} · 森林中有徘徊的史莱姆`:"先在物品栏选择农具或武器";}
+      if(info){info.actionable=weapon&&!boat.aboard;info.hint=boat.aboard?"WASD 驾船 · 靠岸按 E 下船":weapon?bag.hand==="pistol"?"左键朝鼠标射击 · 可同时 WASD 移动 / 跑步":"左键朝鼠标挥剑 · 森林中有徘徊的史莱姆":"先在物品栏选择农具或武器";}
     }
     events.hover(info);
   }
@@ -179,7 +179,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   document.addEventListener("pointerdown",unlockAudio,true);document.addEventListener("keydown",unlockAudio,true);
   const movePointer=(e:PointerEvent)=>{const b=canvas.getBoundingClientRect();mouse={x:e.clientX-b.left,y:e.clientY-b.top};};
   const pointer=(e:PointerEvent)=>{if(paused||e.button!==0)return;canvas.focus({preventScroll:true});movePointer(e);useTool();};
-  const leavePointer=()=>{mouse=null;hovered=null;farmView.hover(null);events.hover(null);};
+  const leavePointer=()=>{mouse=null;aimPoint=null;hovered=null;farmView.hover(null);events.hover(null);};
   canvas.addEventListener("pointerdown",pointer);canvas.addEventListener("pointermove",movePointer);canvas.addEventListener("pointerleave",leavePointer);
   const contextLost=()=>{clearInput();renderGuard.dispose();onError("画面连接已中断，请刷新页面重新进入农场。");};canvas.addEventListener("webglcontextlost",contextLost);
   const renderFrame=()=>{
@@ -193,11 +193,22 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
       clock.update(simDt,settings.timeScale);
       t+=simDt;actionCooldown=Math.max(0,actionCooldown-simDt);actionTime=Math.max(0,actionTime-simDt);for(const tile of farm.update(simDt))farmView.updateTile(tile);
       const right=Number(keys.has("d")||keys.has("arrowright"))-Number(keys.has("a")||keys.has("arrowleft")),up=Number(keys.has("w")||keys.has("arrowup"))-Number(keys.has("s")||keys.has("arrowdown"));
-      let dx=actionTime>0?0:(right-up)*Math.SQRT1_2,dz=actionTime>0?0:(right+up)*Math.SQRT1_2,moved=false;const length=Math.hypot(dx,dz);
+      const {x:dx,z:dz}=movementVector(right,up,actionTime,bag.hand),aiming=bag.hand==="pistol"&&!boat.aboard&&(!!mouse||actionTime>0);
+      let moved=false;
       if(boat.aboard){moved=boat.move(dx,dz,dt);avatar.position.set(boat.position.x,boat.height(settings.motion?t:0)+BOAT_SEAT_HEIGHT,boat.position.z);desiredYaw=boat.yaw;}
-      else{if(length>.001){dx/=length;dz/=length;const speed=mode.running?SPRINT_SPEED:WALK_SPEED;moved=moveWithCollisions(avatar.position,dx*speed*dt,dz*speed*dt,world.canWalk);desiredYaw=Math.atan2(-dx,-dz);}avatar.position.y=world.heightAt(avatar.position.x,avatar.position.z);}
+      else{
+        const beforeX=avatar.position.x,beforeZ=avatar.position.z;
+        if(dx||dz){const speed=mode.running?SPRINT_SPEED:WALK_SPEED;moved=moveWithCollisions(avatar.position,dx*speed*dt,dz*speed*dt,world.canWalk);if(!aiming)desiredYaw=Math.atan2(-dx,-dz);}
+        if(moved)movementYaw=Math.atan2(beforeX-avatar.position.x,beforeZ-avatar.position.z);
+        avatar.position.y=world.heightAt(avatar.position.x,avatar.position.z);
+        if(aiming&&mouse){
+          // Cheap plane intersection every frame: aiming cannot lag behind the tile hover timer.
+          const ray=scene.createPickingRay(mouse.x,mouse.y,Matrix.Identity(),camera,false),distance=(.35-ray.origin.y)/ray.direction.y;
+          if(distance>=0){const point=ray.origin.add(ray.direction.scale(distance));aimPoint={x:point.x,z:point.z};if(Math.hypot(point.x-avatar.position.x,point.z-avatar.position.z)>.05)desiredYaw=Math.atan2(avatar.position.x-point.x,avatar.position.z-point.z);}
+        }
+      }
       body.rotation.y+=Math.atan2(Math.sin(desiredYaw-body.rotation.y),Math.cos(desiredYaw-body.rotation.y))*(1-Math.exp(-14*dt));
-      const footfall=farmer.animate(t,dt,moved,mode.running,boat.aboard,actionTime,settings.motion,bag.hand);
+      const footfall=farmer.animate(t,dt,moved,mode.running,boat.aboard,actionTime,settings.motion,bag.hand,aiming?{movementYaw}:null);
       if(footfall){const tile=farm.get(Math.floor(avatar.position.x),Math.floor(avatar.position.z));audio.step(tile?.tilled?"dirt":tile?.kind??"grass",mode.running);}
       if(moved&&boat.aboard){paddleClock+=dt;if(paddleClock>Math.PI/5){paddleClock%=Math.PI/5;audio.play("paddle",.75);}}else paddleClock=0;
       if(moved&&!boat.aboard&&settings.motion){stepClock+=dt;if(stepClock>(mode.running?.09:.20)){stepClock=0;const p=dust[dustIndex++%dust.length];p.life=.4;p.m.setEnabled(true);p.m.position.set(avatar.position.x,avatar.position.y+.05,avatar.position.z);}}
@@ -232,7 +243,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     moveItem(from,to){const result=bag.move(from,to);if(result.ok)audio.play("select");announce(result);},
     dropItem(index){if(paused)return;if(index===14&&bag.backpackOccupied){announce({ok:false,message:"请先清空背包，再卸下或丢弃"});return;}const item=bag.drop(index);if(!item){announce({ok:false,message:"先选择要丢弃的物品"});return;}groundItems.add(item,avatar.position);audio.play("drop");announce({ok:true,message:`放下${ITEMS[item.id].name} ×${item.count} · 按 E 可重新拾取`});},
     buyItem(id){trade(()=>bag.buy(id));},sellItem(index,all){trade(()=>bag.sell(index,all));},buyBackpack(){trade(()=>bag.buyBackpack());},
-    reset(){clearInput();boat.reset();avatar.position.set(SPAWN.x,0,SPAWN.z);desiredYaw=-.7;tracked.set(SPAWN.x,0,SPAWN.z+1.4);publish();},
+    reset(){clearInput();boat.reset();avatar.position.set(SPAWN.x,0,SPAWN.z);desiredYaw=movementYaw=-.7;tracked.set(SPAWN.x,0,SPAWN.z+1.4);publish();},
     dispose(){disposed=true;renderGuard.dispose();clearInput();audio.dispose();observer.disconnect();window.removeEventListener("resize",resize);window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);window.removeEventListener("blur",clearInput);document.removeEventListener("visibilitychange",visibility);document.removeEventListener("pointerdown",unlockAudio,true);document.removeEventListener("keydown",unlockAudio,true);canvas.removeEventListener("pointerdown",pointer);canvas.removeEventListener("pointermove",movePointer);canvas.removeEventListener("pointerleave",leavePointer);canvas.removeEventListener("webglcontextlost",contextLost);engine.stopRenderLoop(tick);scene.dispose();engine.dispose();},
   };
 }

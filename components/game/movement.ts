@@ -1,4 +1,5 @@
 import type { Point } from "./farming";
+import type { HandItem } from "./inventory";
 
 export const WALK_SPEED=3.0*2;
 export const SPRINT_SPEED=3.0*4;
@@ -9,6 +10,13 @@ export class MovementMode {
   shift(down:boolean){if(down&&!this.shiftDown)this.running=!this.running;this.shiftDown=down;}
   release(){this.shiftDown=false;}
   toggle(){this.running=!this.running;}
+}
+
+/** Camera-relative input stays independent of mouse aim and pistol recoil. */
+export function movementVector(right:number,up:number,action:number,held:HandItem|null):Point{
+  if(action>0&&held!=="pistol")return {x:0,z:0};
+  const x=(right-up)*Math.SQRT1_2,z=(right+up)*Math.SQRT1_2,length=Math.hypot(x,z);
+  return length>.001?{x:x/length,z:z/length}:{x:0,z:0};
 }
 
 export function locomotionPose(phase:number,amount:number,running:boolean,aboard=false){
