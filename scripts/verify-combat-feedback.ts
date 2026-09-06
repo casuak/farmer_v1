@@ -6,10 +6,10 @@ import { DAMAGE_NUMBER_COUNT } from "../components/game/damageNumbers";
 import { createFarmer } from "../components/game/character";
 import { WALK_SPEED,SPRINT_SPEED,movementVector,moveWithCollisions } from "../components/game/movement";
 
-const origin={x:-24,z:0},aim={x:-24,z:-10};
+const origin={x:-24,z:12},aim={x:-24,z:2};
 function place(model:CombatModel){
-  model.slimes.forEach((s,i)=>Object.assign(s,{x:-35,z:25+i*.1,wait:100,flash:0,knockX:0,knockZ:0,hp:3}));
-  const slime=model.slimes[0];Object.assign(slime,{x:-24,z:-1.2});return slime;
+  model.slimes.forEach((s,i)=>Object.assign(s,{x:-41,z:32+i*.1,wait:100,flash:0,knockX:0,knockZ:0,hp:3}));
+  const slime=model.slimes[0];Object.assign(slime,{x:-24,z:10.8});return slime;
 }
 
 export function verifyCombatFeedback(scene:Scene,shadow:ShadowGenerator){
@@ -18,18 +18,18 @@ export function verifyCombatFeedback(scene:Scene,shadow:ShadowGenerator){
   for(const model of [coarse,fine]){assert.equal(model.attack("sword",origin,aim).hits,1);assert.equal(model.takeHits()[0].damage,2);}
   coarse.update(.2);for(let i=0;i<10;i++)fine.update(.02);
   assert(Math.abs(a.z-b.z)<1e-10,"Knockback distance stays consistent across frame rates");
-  assert(a.z<-1.40&&a.z>-1.46&&a.x===origin.x,"Sword knockback is small and points away from the attacker");
-  Object.assign(a,{home:{x:-24,z:2.29},knockX:0,knockZ:0,wait:0,travel:1,yaw:Math.PI});const beyondRadius=a.z;coarse.update(.1);
+  assert(a.z<10.60&&a.z>10.54&&a.x===origin.x,"Sword knockback is small and points away from the attacker");
+  Object.assign(a,{home:{x:-24,z:14.29},knockX:0,knockZ:0,wait:0,travel:1,yaw:Math.PI});const beyondRadius=a.z;coarse.update(.1);
   assert(a.z>beyondRadius,"A slime knocked beyond its wander radius can walk home again");
-  const wall=new CombatModel((_,z,r=0)=>z-r>=-2,()=>true),blocked=place(wall);blocked.z=-1.45;
+  const wall=new CombatModel((_,z,r=0)=>z-r>=10,()=>true),blocked=place(wall);blocked.z=10.55;
   wall.attack("sword",origin,aim);wall.update(.25);
-  assert(blocked.z>=-1.6&&blocked.z<-1.45,"A hit cannot push the slime's collision radius through a wall or river bank");
-  const edge=new CombatModel(()=>true,()=>true),edgeSlime=place(edge);edgeSlime.x=-38.95;edgeSlime.z=0;
-  edge.attack("sword",{x:-37.8,z:0},{x:-40,z:0});edge.update(.25);
-  assert(edgeSlime.x>-39,"Knockback keeps enemies inside the playable forest");
+  assert(blocked.z>=10.4&&blocked.z<10.55,"A hit cannot push the slime's collision radius through a wall or river bank");
+  const edge=new CombatModel(()=>true,()=>true),edgeSlime=place(edge);edgeSlime.x=-45.95;edgeSlime.z=12;
+  edge.attack("sword",{x:-44.8,z:12},{x:-48,z:12});edge.update(.25);
+  assert(edgeSlime.x>-46,"Knockback keeps enemies inside the playable forest");
 
   const view=createCombat(scene,shadow,()=>true,()=>true),slime=place(view.model),first=view.views[0],second=view.views[1];
-  Object.assign(second.s,{x:-23,z:-1.1,hp:1});
+  Object.assign(second.s,{x:-23,z:10.9,hp:1});
   const count=scene.meshes.length;
   assert.equal(view.model.attack("sword",origin,aim).hits,2);view.update(.04,true);
   assert.equal(first.mesh.material!.name,"slime-hit-red");assert(!first.mesh.useVertexColors,"Green vertex colors cannot mute the red flash");
@@ -46,10 +46,10 @@ export function verifyCombatFeedback(scene:Scene,shadow:ShadowGenerator){
   assert(view.model.attack("pistol",origin,slime).fired);let projectileHits=0;for(let i=0;i<3;i++)projectileHits+=view.update(.03,true);
   assert.equal(projectileHits,1);assert.equal(slime.hp,0);assert(view.numbers.labels.some(n=>n.life>0&&n.damage===1));
   for(let i=0;i<2;i++)view.update(.25,false);
-  const reduced=view.views[2];Object.assign(reduced.s,{x:-24,z:-1.2,hp:3,wait:100});
+  const reduced=view.views[2];Object.assign(reduced.s,{x:-24,z:10.8,hp:3,wait:100});
   view.model.attack("sword",origin,aim);view.update(.03,false);
   const calm=view.numbers.labels.find(n=>n.life>.8)!;const calmY=calm.root.position.y;
-  assert(reduced.s.z<-1.2,"Reduced decorative motion still preserves gameplay knockback");
+  assert(reduced.s.z<10.8,"Reduced decorative motion still preserves gameplay knockback");
   view.update(.03,false);assert.equal(reduced.visual.position.x,0);assert.equal(reduced.visual.rotation.z,0);assert.equal(calm.root.position.y,calmY);
   for(let i=0;i<DAMAGE_NUMBER_COUNT*3;i++)view.numbers.show({x:-24,z:-1,damage:i%2+1,killed:false});
   assert.equal(scene.meshes.length,count,"Repeated hits reuse damage glyphs and impact meshes");assert.equal(view.numbers.labels.length,DAMAGE_NUMBER_COUNT);

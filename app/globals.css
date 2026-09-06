@@ -294,3 +294,6 @@ kbd{font-family:inherit;font-size:12px;font-weight:700;display:inline-flex;justi
   .phase-three .controls{width:180px;max-width:180px;bottom:12px}.phase-three .controls .round-button{height:32px}.phase-three .controls .zoom-control{display:flex;height:30px}
   .main-pack-grid{grid-template-columns:repeat(6,minmax(24px,1fr))}.equipment-grid{grid-template-columns:repeat(3,minmax(24px,1fr))}.pack-slot{height:33px}.equipment-slot{height:46px}.adventure-actions{bottom:142px}
 }
+
+.four-districts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.four-districts p{margin:0;padding:11px 12px;border:1px solid #d9e0cb;border-radius:10px;background:#f5f5e9}.four-districts p[data-current=true]{border-color:#93ad7b;background:#eaf0db}.four-districts strong{display:flex;align-items:center;gap:7px;margin:0 0 4px}.four-districts i{width:10px;height:10px;border-radius:3px;border:1px solid #59725738}.four-districts span{display:block;font-size:12px;line-height:1.65}.four-districts .map-orientation{grid-column:1/-1;border:0;background:none;padding:4px 0 0}
+@media(max-width:420px){.four-districts{gap:6px}.four-districts p{padding:8px}.four-districts span{font-size:11px}}

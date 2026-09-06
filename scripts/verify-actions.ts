@@ -4,6 +4,7 @@ import type { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGener
 import { InventoryModel,BASE_SLOTS,MAIN_SLOTS } from "../components/game/inventory";
 import { FarmModel,inReach,sweepTiles,tileKey,type Point } from "../components/game/farming";
 import { CombatModel,createCombat,SLIME_HEALTH } from "../components/game/combat";
+import { inForest } from "../components/game/geography";
 import { createActionEffects } from "../components/game/actionEffects";
 import type { buildWorld } from "../components/game/world";
 
@@ -40,19 +41,19 @@ export function verifyActions(scene:Scene,world:ReturnType<typeof buildWorld>,sh
   for(let i=0;i<MAIN_SLOTS;i++)crowded.bag.slots[i]={id:"wood",count:30};crowded.bag.slots[0]={id:"scythe",count:1};crowded.bag.slots[1]={id:"turnip",count:18};crowded.bag.slots[2]={id:"seeds",count:98};
   const before=crowded.bag.snapshot();assert(!crowded.harvestArea(player,{x:.5,z:-5}).ok);assert.deepEqual(crowded.bag.snapshot(),before);assert(sweepTiles(player,{x:.5,z:-5}).every(p=>crowded.get(p.x,p.z)!.crop),"Insufficient capacity preserves every crop in the sweep");
 
-  const model=new CombatModel(()=>true,()=>true),origin={x:-24,z:0};
-  model.slimes.forEach((s,i)=>Object.assign(s,{x:-35,z:25+i*.1,wait:100}));
-  Object.assign(model.slimes[0],{x:-24,z:-1.2});Object.assign(model.slimes[1],{x:-23,z:-1});Object.assign(model.slimes[2],{x:-24,z:1});
-  const attack=model.attack("sword",origin,{x:-24,z:-10});assert.equal(attack.hits,2);assert.equal(model.slimes[2].hp,SLIME_HEALTH,"A sword does not hit behind the player");assert(!model.attack("sword",origin,{x:-24,z:-10}).fired,"Held or repeated input respects weapon cooldown");
+  const model=new CombatModel(()=>true,()=>true),origin={x:-24,z:12};
+  model.slimes.forEach((s,i)=>Object.assign(s,{x:-41,z:32+i*.1,wait:100}));
+  Object.assign(model.slimes[0],{x:-24,z:10.8});Object.assign(model.slimes[1],{x:-23,z:11});Object.assign(model.slimes[2],{x:-24,z:13});
+  const attack=model.attack("sword",origin,{x:-24,z:2});assert.equal(attack.hits,2);assert.equal(model.slimes[2].hp,SLIME_HEALTH,"A sword does not hit behind the player");assert(!model.attack("sword",origin,{x:-24,z:2}).fired,"Held or repeated input respects weapon cooldown");
   for(let i=0;i<6;i++)model.update(.1);
-  assert(model.attack("pistol",origin,{x:-24,z:-10}).fired);let hits=0;for(let i=0;i<40;i++)hits+=model.update(.02);
+  assert(model.attack("pistol",origin,{x:-24,z:2}).fired);let hits=0;for(let i=0;i<40;i++)hits+=model.update(.02);
   assert.equal(hits,1);assert.equal(model.slimes[0].hp,0,"Projectiles damage and defeat the first intersected slime");
   for(let i=0;i<160;i++)model.update(.2);assert.equal(model.slimes[0].hp,SLIME_HEALTH,"Defeated slimes eventually respawn");
-  const wall=new CombatModel(()=>true,(a,b)=>!(a.z>=-.5&&b.z<-.5));wall.slimes.forEach(s=>Object.assign(s,{x:-35,z:25,wait:100}));Object.assign(wall.slimes[0],{x:-24,z:-1});
-  assert.equal(wall.attack("sword",origin,{x:-24,z:-3}).hits,0);for(let i=0;i<6;i++)wall.update(.1);wall.attack("pistol",origin,{x:-24,z:-3});for(let i=0;i<20;i++)wall.update(.02);assert.equal(wall.slimes[0].hp,SLIME_HEALTH,"Bullets and sword slashes both stop at barriers");
+  const wall=new CombatModel(()=>true,(a,b)=>!(a.z>=11.5&&b.z<11.5));wall.slimes.forEach(s=>Object.assign(s,{x:-41,z:32,wait:100}));Object.assign(wall.slimes[0],{x:-24,z:11});
+  assert.equal(wall.attack("sword",origin,{x:-24,z:9}).hits,0);for(let i=0;i<6;i++)wall.update(.1);wall.attack("pistol",origin,{x:-24,z:9});for(let i=0;i<20;i++)wall.update(.02);assert.equal(wall.slimes[0].hp,SLIME_HEALTH,"Bullets and sword slashes both stop at barriers");
   const view=createCombat(scene,shadow,world.canWalk,world.clearReach),effects=createActionEffects(scene);assert(view.model.slimes.length>=8);
   const count=scene.meshes.length;for(let i=0;i<120;i++)view.update(.1,true);
-  for(const s of view.model.slimes)assert(s.x<-19.5&&world.canWalk(s.x,s.z,.39),"Slimes wander on clear forest ground");
+  for(const s of view.model.slimes)assert(inForest(s.x,s.z)&&world.canWalk(s.x,s.z,.39),"Slimes wander on clear forest ground");
   effects.swing(player,0,"scythe");effects.update(.1,true);assert(effects.mesh.isEnabled()&&effects.mesh.visibility>0);effects.update(.25,true);assert(!effects.mesh.isEnabled());
   assert.equal(scene.meshes.length,count,"Attacks and wandering reuse their mesh pools");
   console.log("Action regression passed: equipment validation, backpack safety, nearest reachable tile, three-cell directional harvest, capacity conservation, weapon cooldown, barriers, health, respawn and pooled effects.");

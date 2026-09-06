@@ -17,21 +17,22 @@ import { InventoryModel,ITEMS,type ItemId,type InventorySnapshot,type InventoryR
 import { BoatModel,BOAT_SEAT_HEIGHT } from "./boat";
 import { createBoatView } from "./ocean";
 import { GroundItems,createGroundItemView } from "./droppedItems";
-import { regionName } from "./geography";
+import { regionName,FARM_SPAWN,GARDEN } from "./geography";
 import { RenderGuard } from "./renderGuard";
 import { DayNightClock,type ClockSnapshot } from "./dayNight";
 import { GameAudio } from "./audio";
 import { createActionEffects } from "./actionEffects";
 import { createCombat } from "./combat";
+import { createGunfire } from "./gunfire";
 
 export type GameSettings={zoom:number;shadows:boolean;motion:boolean;occlusion:boolean;grid:boolean;bloom:boolean;timeScale:number;sound:boolean;volume:number};
 export type Interaction={kind:"pickup"|"boat"|"shop"|"talk";label:string};
 export type GameStatus={x:number;z:number;location:string;moving:boolean;running:boolean;aboard:boolean;fps:number;bag:InventorySnapshot;interaction:Interaction|null;clock:ClockSnapshot;bloomAvailable:boolean};
-export const SPAWN={x:-3.5,z:-3.5};
+export const SPAWN=FARM_SPAWN;
 export type GameApi={dispose:()=>void;settings:(s:GameSettings)=>void;pause:(p:boolean)=>void;reset:()=>void;key:(k:string,down:boolean)=>void;toggleRun:()=>void;interact:()=>void;selectSlot:(index:number)=>void;moveItem:(from:number,to:number)=>void;dropItem:(index:number)=>void;buyItem:(id:ItemId)=>void;sellItem:(index:number,all:boolean)=>void;buyBackpack:()=>void;setTime:(hour:number)=>void};
 
 export function createFarmCamera(scene:Scene) {
-  const camera=new ArcRotateCamera("fixed-45-orthographic",-Math.PI/4,Math.PI/4,65,new Vector3(-1.6,0,1.0),scene);
+  const camera=new ArcRotateCamera("fixed-45-orthographic",-Math.PI/4,Math.PI/4,65,new Vector3(SPAWN.x,0,SPAWN.z+1.4),scene);
   camera.mode=Camera.ORTHOGRAPHIC_CAMERA;camera.minZ=.1;camera.maxZ=180;
   camera.lowerBetaLimit=camera.upperBetaLimit=Math.PI/4;camera.lowerAlphaLimit=camera.upperAlphaLimit=-Math.PI/4;
   camera.overrideCloneAlphaBetaRadius=true;camera.inputs.clear();scene.activeCamera=camera;return camera;
@@ -47,11 +48,12 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   avatar.position.set(SPAWN.x,0,SPAWN.z);
   const bag=new InventoryModel(),farm=new FarmModel(world.tiles,world.clearReach,bag),mode=new MovementMode(),boat=new BoatModel(),clock=new DayNightClock();
   const boatView=createBoatView(scene,shadow,boat),groundItems=new GroundItems(),groundView=createGroundItemView(scene,groundItems,world.heightAt);
-  for(const [x,z] of [[27,-5],[28,-8],[28,5],[29,15],[27,-19],[28,28],[28,-27],[29,33]])if(world.canWalk(x,z))groundItems.add({id:"shell",count:2},{x,z});
-  for(const [x,z] of [[-27,-5],[-28,6],[-30,16],[-29,-19],[-32,1],[-25,24]])if(world.canWalk(x,z))groundItems.add({id:"wood",count:3},{x,z});
-  farm.seedExample(-9,-4,0);farm.seedExample(-8,-4,12);farm.seedExample(-9,-6,24);farm.seedExample(-8,-6,6);
+  for(const [x,z] of [[14,-7],[19,-12],[12,-24],[27,-19],[28,-28],[20,-34],[26,-3],[29,-15]])if(world.canWalk(x,z))groundItems.add({id:"shell",count:2},{x,z});
+  for(const [x,z] of [[-30,10],[-32,14],[-21,12],[-34,32],[-28,23],[-17,25]])if(world.canWalk(x,z))groundItems.add({id:"wood",count:3},{x,z});
+  for(const [dx,dz,age] of [[3,7,0],[4,7,12],[3,5,24],[4,5,6]])farm.seedExample(GARDEN.x+dx,GARDEN.z+dz,age);
   const farmView=createFarmView(scene,shadow,world.tiles,world.clearTile);for(const tile of farm.tiles.values())if(tile.tilled)farmView.updateTile(tile);
   const heldTools=createHeldTools(scene,farmer.hand,shadow);heldTools.select(bag.hand);
+  const gunfire=createGunfire(scene,heldTools.muzzle);
   const ringMat=new StandardMaterial("player-ring",scene);ringMat.diffuseColor=Color3.FromHexString("#f6ecd1");ringMat.emissiveColor=Color3.FromHexString("#f6ecd1").scale(.6);ringMat.specularColor=Color3.Black();
   const ring=MeshBuilder.CreateTorus("player-ground-ring",{diameter:.84,thickness:.037,tessellation:32},scene);ring.material=ringMat;ring.isPickable=false;
   const dustMat=new StandardMaterial("footstep-dust",scene);dustMat.diffuseColor=Color3.FromHexString("#dcc593");dustMat.specularColor=Color3.Black();dustMat.alpha=.45;
@@ -142,9 +144,15 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     const hand=bag.hand;if(!hand){announce({ok:false,message:"先在物品栏选择农具或武器"});return;}
     pickTile();const aim=aimPoint??{x:avatar.position.x-Math.sin(desiredYaw),z:avatar.position.z-Math.cos(desiredYaw)};
     if(hand==="pistol"||hand==="sword"){
-      const result=combat.model.attack(hand,avatar.position,aim);if(!result.fired)return;
+      let muzzle:Vector3|undefined;
+      if(hand==="pistol"){
+        desiredYaw=Math.atan2(avatar.position.x-aim.x,avatar.position.z-aim.z);body.rotation.y=desiredYaw;
+        farmer.animate(t,0,lastMoving,mode.running,false,.22,settings.motion,"pistol",{movementYaw});
+        heldTools.muzzle.computeWorldMatrix(true);muzzle=heldTools.muzzle.getAbsolutePosition();
+      }
+      const result=combat.model.attack(hand,avatar.position,aim,muzzle);if(!result.fired)return;
       desiredYaw=result.heading;body.rotation.y=desiredYaw;actionTime=hand==="pistol"?.22:.43;actionCooldown=hand==="pistol"?.32:.48;
-      audio.play(hand);if(hand==="sword")actionEffects.swing(avatar.position,desiredYaw,"sword");if(result.hits)audio.play("slime",.65);return;
+      audio.play(hand);if(hand==="sword")actionEffects.swing(avatar.position,desiredYaw,"sword");else gunfire.fire();if(result.hits)audio.play("slime",.65);return;
     }
     const tool=hand;
     if(tool==="scythe"){
@@ -220,6 +228,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     const solar=lighting.update(clock.hour,tracked);
     world.update(t,settings.motion,boat.aboard?undefined:avatar.position,settings.shadows,paused?0:dt,solar,tracked);boatView.update(t,settings.motion);groundView.update(t,settings.motion);
     if(combat.update(paused?0:simDt,settings.motion)>0)audio.play("slime",.65);
+    gunfire.update(paused?0:simDt,settings.motion);
     actionEffects.update(paused?0:simDt,settings.motion);
     farmView.update(t,paused?0:simDt,settings.motion,avatar.position,settings.grid,!!mouse&&!paused&&!boat.aboard&&!!bag.tool);
     hoverClock+=dt;if(hoverClock>.09){hoverClock=0;pickTile();}

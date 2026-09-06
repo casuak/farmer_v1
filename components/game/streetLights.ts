@@ -10,17 +10,17 @@ import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData";
 import type { Scene } from "@babylonjs/core/scene";
 import type { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGenerator";
 import type { Obstacle } from "./world";
-import { BOUNDS,BUILDINGS,groundHeight,surfaceKind } from "./geography";
+import { BOUNDS,BUILDINGS,DOCK,groundHeight,surfaceKind } from "./geography";
 import { Voxels,voxelMaterial } from "./voxel";
 
 export const STREET_LIGHTS=[
-  {id:"town-west",x:-14.7,z:21.5},{id:"town-square",x:1.5,z:21.5},
-  {id:"town-bridge",x:13.5,z:21.5},{id:"town-coast",x:25,z:21.5},
-  {id:"farm-crossing",x:-3.1,z:-1.8},{id:"farm-south",x:-3.1,z:-12},
-  {id:"farmhouse",x:-10.8,z:3.1},{id:"town-road",x:.2,z:13},
-  {id:"river-bridge",x:13.4,z:-2},{id:"forest-crossing",x:-26.3,z:2.2},
-  {id:"forest-path",x:-25.3,z:-13},{id:"beach-south",x:27.7,z:-17},
-  {id:"pier",x:37,z:.9},{id:"beach-north",x:27.8,z:9},
+  {id:"town-west",x:1.5,z:19.9},{id:"town-square",x:14.8,z:9},
+  {id:"town-shop",x:3.2,z:21.6},{id:"town-coast",x:25.1,z:21},
+  {id:"farm-crossing",x:-18,z:-21.9},{id:"farm-south",x:-18,z:-32},
+  {id:"farmhouse",x:-22,z:-16.5},{id:"central-crossing",x:1.8,z:-1.9},
+  {id:"river-bridge",x:1.8,z:-21.9},{id:"forest-crossing",x:-17.7,z:2.8},
+  {id:"forest-path",x:-22,z:21.8},{id:"beach-south",x:10.2,z:-32},
+  {id:"pier",x:DOCK.x,z:DOCK.z+.9},{id:"beach-north",x:10.2,z:-7},
 ] as const;
 export const ACTIVE_STREET_LIGHTS=4;
 const POOL_RADIUS=4.8;

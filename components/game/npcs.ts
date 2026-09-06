@@ -6,11 +6,11 @@ import { moveWithCollisions } from "./movement";
 import { Voxels,voxelMaterial } from "./voxel";
 
 const RESIDENTS=[
-  {name:"莉芙",color:"#c49389",line:"往北走就是松果杂货店。进门按 E，萝卜和贝壳都能卖！",route:[[-12,18],[-2,18],[-2,20],[-12,20]]},
-  {name:"阿松",color:"#809aa4",line:"码头在农场东边。走到小船旁按 E，就能出海了。",route:[[13,19.7],[23,19.7],[23,18],[13,18]]},
-  {name:"米娅",color:"#d1b576",line:"樱花开的季节，连海风都带着一点甜味。",route:[[-11,20.7],[-3,20.7],[-3,19.2],[-11,19.2]]},
-  {name:"奥利",color:"#819b75",line:"森林里的落木可以拾起来，杂货店会收购。",route:[[-28,-10],[-28,-3],[-27,-3],[-27,-10]]},
-  {name:"艾达",color:"#a392af",line:"帆布背包只要 120 金币，穿上就多 8 格位置。",route:[[-1.5,23],[.3,23],[.3,27],[-1.5,27]]},
+  {name:"莉芙",color:"#c49389",line:"广场旁的绿屋顶就是松果杂货店。进门按 E，萝卜和贝壳都能卖！",route:[[4,18],[12,18],[12,20],[4,20]]},
+  {name:"阿松",color:"#809aa4",line:"沿海岸木栈道往南走，再向海边拐，就到小船的码头了。",route:[[18,0],[26,0],[26,-3],[18,-3]]},
+  {name:"米娅",color:"#d1b576",line:"樱花开的季节，连海风都带着一点甜味。",route:[[4.5,7],[12.5,7],[12.5,9],[4.5,9]]},
+  {name:"奥利",color:"#819b75",line:"林间空地里有史莱姆。带上手枪，可以一边后退一边射击。",route:[[-20,7],[-20,16],[-18,16],[-18,7]]},
+  {name:"艾达",color:"#a392af",line:"帆布背包只要 120 金币，穿上就多 8 格位置。",route:[[10,31],[12,31],[12,34],[10,34]]},
 ];
 
 export function createResidents(scene:Scene,shadow:ShadowGenerator,canWalk:(x:number,z:number,r?:number)=>boolean) {

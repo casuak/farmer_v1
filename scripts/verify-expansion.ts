@@ -9,24 +9,24 @@ import { BoatModel,BOAT_SPEED } from "../components/game/boat";
 import { createBoatView } from "../components/game/ocean";
 import { GroundItems,createGroundItemView } from "../components/game/droppedItems";
 import { createFarmer } from "../components/game/character";
-import { BOUNDS,canSail,seaHeight } from "../components/game/geography";
+import { BOUNDS,BRIDGES,DOCK,FARM_SPAWN,canSail,seaHeight } from "../components/game/geography";
 import type { createSpringLighting } from "../components/game/lighting";
 
 export function verifyExpansion(scene:Scene,w:ReturnType<typeof buildWorld>,lighting:ReturnType<typeof createSpringLighting>){
   // Half-metre flood fill includes door centres; 1 m centres alone miss narrow doorways.
-  const reached=new Set<string>(),queue=[{x:-3.5,z:-3.5}];reached.add(tileKey(-3.5,-3.5));
+  const reached=new Set<string>(),queue=[{...FARM_SPAWN}];reached.add(tileKey(FARM_SPAWN.x,FARM_SPAWN.z));
   for(let i=0;i<queue.length;i++)for(const [dx,dz] of [[.5,0],[-.5,0],[0,.5],[0,-.5]]){
     const p={x:queue[i].x+dx,z:queue[i].z+dz},key=tileKey(p.x,p.z);
     if(!reached.has(key)&&w.canWalk(p.x,p.z)){reached.add(key);queue.push(p);}
   }
-  for(const p of [{x:-28,z:0},{x:-6,z:20},{x:27,z:-5},{x:37,z:0},{x:16,z:20}])assert(reached.has(tileKey(p.x,p.z)),`Region destination ${JSON.stringify(p)} connects to spawn`);
+  for(const p of [{x:-20,z:18},{x:8,z:18},{x:8,z:-20},DOCK,{x:12,z:8}])assert(reached.has(tileKey(p.x,p.z)),`Region destination ${JSON.stringify(p)} connects to spawn`);
   assert.equal(w.rooms.length,4);
   for(const room of w.rooms){
     const entry={x:room.x,z:Math.ceil((room.z-room.d/2+.6)*2)/2};
     assert(w.canWalk(entry.x,entry.z),`${room.name} has a usable entrance`);assert(reached.has(tileKey(entry.x,entry.z)),`${room.name} connects to spawn`);assert.equal(w.roomAt(entry)?.id,room.id);assert(!w.canWalk(room.x+room.w/2,room.z),"Side walls block passage");
     const roof=w.occluders.find(o=>o.room===room.id&&o.mesh.name.endsWith("-roof"));assert(roof&&roof.insideOpacity!<.05);assert(scene.getMeshByName(room.id+"-interior")!.getTotalVertices()>200);
   }
-  for(let x=5.5;x<12.5;x+=.1)assert(w.canWalk(x,20),"Town bridge remains traversable");
+  for(const b of BRIDGES)for(let x=b.x-b.w/2-.5;x<b.x+b.w/2+.5;x+=.1)assert(w.canWalk(x,b.z),"Every district bridge remains traversable");
   for(const kind of ["sea","sand","dock","floor"])assert(w.tiles.some(t=>t.kind===kind));
   const mode=new MovementMode();assert(mode.running,"The player starts in run mode");mode.shift(true);assert(!mode.running);mode.shift(true);assert(!mode.running,"Holding Shift never repeats the toggle");mode.shift(false);assert(!mode.running,"Key release keeps the selected mode");mode.shift(true);assert(mode.running);mode.shift(false);
   const walk=locomotionPose(1.1,1,false),run=locomotionPose(1.1,1,true);assert(run.bob>walk.bob&&run.lean<walk.lean&&run.elbow>walk.elbow+.5,"Run has a separate bent-arm, forward-leaning gait");
@@ -41,11 +41,11 @@ export function verifyExpansion(scene:Scene,w:ReturnType<typeof buildWorld>,ligh
   const footfalls=(running:boolean)=>{let hits=0;for(let i=0;i<60;i++)if(farmer.animate(i/60,1/60,true,running,false,0,true))hits++;return hits;};
   const walkingHits=footfalls(false),runningHits=footfalls(true);assert(walkingHits>=3&&runningHits>walkingHits,"Footstep sounds follow the independent walk and run animation cadence");
   assert(!farmer.animate(3,.1,false,true,false,0,true));assert(!farmer.animate(3,.1,true,true,true,0,true),"Standing still and sailing do not produce footfalls");
-  const boat=new BoatModel(),boatView=createBoatView(scene,lighting.shadow,boat);assert(!boat.board({x:0,z:0}));assert(boat.board({x:37,z:0}));
+  const boat=new BoatModel(),boatView=createBoatView(scene,lighting.shadow,boat);assert(!boat.board({x:0,z:0}));assert(boat.board(DOCK));
   const landing=boat.disembark(w.canWalk);assert(landing&&w.canWalk(landing.x,landing.z));assert(!boat.aboard);
-  boat.board({x:37,z:0});const startZ=boat.position.z;boat.move(0,-1,1);assert(Math.abs(boat.position.z-(startZ-BOAT_SPEED))<.001);
+  boat.board(DOCK);const startZ=boat.position.z;boat.move(0,-1,1);assert(Math.abs(boat.position.z-(startZ-BOAT_SPEED))<.001);
   boat.position={x:43,z:-15};assert.equal(boat.disembark(w.canWalk),null,"Cannot disembark in deep sea");assert(boat.aboard);boat.move(-1,0,5);assert(canSail(boat.position.x,boat.position.z));
-  boat.position={x:44,z:0};boat.move(1,0,10);assert(boat.position.x<=BOUNDS.x-1.5);boat.reset();boat.board({x:37,z:0});boat.move(0,1,1);assert(boat.position.z<-2,"Boat cannot cross pier");
+  boat.position={x:44,z:0};boat.move(1,0,10);assert(boat.position.x<=BOUNDS.x-1.5);boat.reset();boat.board(DOCK);boat.move(0,1,1);assert(boat.position.z<DOCK.z-2,"Boat cannot cross pier");
   boatView.update(1,true);const boatY=boatView.root.position.y;boatView.update(2,true);assert.notEqual(boatY,boatView.root.position.y);assert.notEqual(seaHeight(36,0,0),seaHeight(36,0,2));
   const pack=new InventoryModel();assert.equal(pack.slots.length,15);assert.equal(pack.gold,200);
   const resources=()=>Object.keys(ITEMS).map(id=>pack.count(id as keyof typeof ITEMS)),counts=resources();pack.select(0);assert(pack.move(0,10).ok);assert.equal(pack.selected,10);assert(pack.move(10,2).ok);assert.deepEqual(resources(),counts,"Slot swaps conserve items");

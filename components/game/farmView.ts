@@ -110,6 +110,7 @@ export function createFarmView(scene:Scene,shadow:ShadowGenerator,tiles:TileSeed
 
 export function createHeldTools(scene:Scene,hand:TransformNode,shadow:ShadowGenerator) {
   const material=voxelMaterial(scene,"hand-tools"),root=new TransformNode("equipped-tool",scene);root.parent=hand;root.position.set(0,-.20,-.02);
+  const muzzle=new TransformNode("pistol-muzzle",scene);muzzle.parent=root;muzzle.position.set(0,-.39,-.04);
   const tools=new Map<HandItem,Mesh>();
   for(const tool of [...TOOLS,"pistol","sword"] as HandItem[]){
     const v=new Voxels();
@@ -128,5 +129,5 @@ export function createHeldTools(scene:Scene,hand:TransformNode,shadow:ShadowGene
     }
     const mesh=v.build("equipped-"+tool,scene,material);mesh.parent=root;mesh.setEnabled(false);shadow.addShadowCaster(mesh);tools.set(tool,mesh);
   }
-  return {select(tool:HandItem|null){for(const [id,mesh] of tools)mesh.setEnabled(id===tool);}};
+  return {muzzle,select(tool:HandItem|null){for(const [id,mesh] of tools)mesh.setEnabled(id===tool);muzzle.setEnabled(tool==="pistol");}};
 }

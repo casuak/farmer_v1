@@ -15,6 +15,7 @@ import ShopPanel from "./ShopPanel";
 import WorldMap from "./WorldMap";
 import TimeControls,{QuickTime} from "./TimeControls";
 import { DayNightClock,formatClock,timeOfDay } from "./dayNight";
+import { FARM_SPAWN } from "./geography";
 
 type Panel="help"|"settings"|"shop"|"map"|null;
 const MIN_ZOOM=75,MAX_ZOOM=160;
@@ -22,7 +23,7 @@ export default function FarmGame(){
   const canvas=useRef<HTMLCanvasElement>(null),api=useRef<GameApi|null>(null);
   const [ready,setReady]=useState(false),[error,setError]=useState(""),[panel,setPanel]=useState<Panel>(null),[full,setFull]=useState(false);
   const [settings,setSettings]=useState<GameSettings>({zoom:140,shadows:true,motion:true,occlusion:true,grid:true,bloom:true,timeScale:1,sound:true,volume:.55});
-  const [status,setStatus]=useState<GameStatus>(()=>({x:-3.5,z:-3.5,location:"松溪农场",moving:false,running:true,aboard:false,fps:0,bag:new InventoryModel().snapshot(),interaction:null,clock:new DayNightClock().snapshot(),bloomAvailable:true}));
+  const [status,setStatus]=useState<GameStatus>(()=>({...FARM_SPAWN,location:"松溪农场",moving:false,running:true,aboard:false,fps:0,bag:new InventoryModel().snapshot(),interaction:null,clock:new DayNightClock().snapshot(),bloomAvailable:true}));
   const [tileInfo,setTileInfo]=useState<TileInfo|null>(null);
   const latest=useRef(settings);latest.current=settings;
   const resumeTimeScale=useRef(1);
@@ -62,8 +63,8 @@ export default function FarmGame(){
   async function fullscreen(){try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen();}catch{setPanel("settings");}}
   const reset=()=>{api.current?.reset();zoom(140);setPanel(null);};
   const touch=(k:string)=>({onPointerDown:(e:React.PointerEvent<HTMLButtonElement>)=>{e.preventDefault();e.currentTarget.setPointerCapture(e.pointerId);api.current?.key(k,true);},onPointerUp:()=>api.current?.key(k,false),onPointerCancel:()=>api.current?.key(k,false),onLostPointerCapture:()=>api.current?.key(k,false)});
-  const titles={help:"在松溪，慢慢生活",settings:"让画面更合心意",shop:"松果杂货店",map:"把春天走远一点"};
-  const descriptions={help:"种一片菜圃，走过森林，再乘小船去看海。",settings:"保持清晰的固定视角，调整适合你的画面。",shop:"欢迎光临。收成可以换成金币，也可以添置新的背包。",map:"四个区域相连，沿路就能遇见新的风景。"};
+  const titles={help:"在松溪，慢慢生活",settings:"让画面更合心意",shop:"松果杂货店",map:"松溪四区"};
+  const descriptions={help:"种一片菜圃，走过森林，再乘小船去看海。",settings:"保持清晰的固定视角，调整适合你的画面。",shop:"欢迎光临。收成可以换成金币，也可以添置新的背包。",map:"从农场出发，穿过林道与木桥，走进小镇和海滩。"};
   const period=timeOfDay(status.clock.minutes/60),ClockIcon=period==="夜晚"?Moon:period==="黄昏"?Sunset:period==="清晨"?Sunrise:Sun;
   return <main className={`farm phase-three ${period==="夜晚"?"is-night":""}`} aria-label="松溪农场，3D 体素游戏">
     <canvas className="game-canvas" ref={canvas} tabIndex={0} aria-label="游戏场景。WASD 移动，Shift 切换跑步，E 互动，滚轮缩放，1 至 9 选物品。左键操作高亮地块或朝鼠标攻击，5 为手枪，6 为长剑。"/>
@@ -72,7 +73,7 @@ export default function FarmGame(){
     <div className="hud chapter"><span/>第三章 · 山海之间</div>
     <div className="hud calendar glass"><ClockIcon className="weather-icon"/><button className="calendar-clock" onClick={()=>setPanel("settings")} title="调整昼夜与时间流速" aria-label={`春 ${status.clock.day} 日 ${formatClock(status.clock.minutes)}，${period}。打开时间设置`}><time>{formatClock(status.clock.minutes)}</time><small>春 · {String(status.clock.day).padStart(2,"0")} 日 · {period}</small></button><div className="gold-wallet" aria-label={`${status.bag.gold} 金币`}><Coins/><strong>{status.bag.gold.toLocaleString()}<small>G</small></strong></div></div>
     <QuickTime clock={status.clock} paused={settings.timeScale===0} onPause={()=>changeTimeScale(settings.timeScale===0?resumeTimeScale.current:0)} onTime={hour=>api.current?.setTime(hour)}/>
-    <button className="hud mini-map-card glass" onClick={()=>setPanel("map")} title="打开区域地图" aria-label="打开区域地图"><div className="mini-map-title"><Map size={14}/><span>松溪与海</span><Plus size={12}/></div><WorldMap x={status.x} z={status.z} aboard={status.aboard} compact/></button>
+    <button className="hud mini-map-card glass" onClick={()=>setPanel("map")} title="打开区域地图" aria-label="打开区域地图"><div className="mini-map-title"><Map size={14}/><span>松溪四区</span><Plus size={12}/></div><WorldMap x={status.x} z={status.z} aboard={status.aboard} compact/></button>
     <div className="hud place"><MapPin/><strong>{status.location}</strong></div>
     <div className="hud movement-help glass" aria-label="移动操作提示">
       <div className="keyboard-move"><kbd>WASD</kbd><span>/ 方向键移动</span></div>
@@ -111,8 +112,8 @@ export default function FarmGame(){
             <div className="help-row">整理和丢下<span>拖到另一格 / 拖到场景</span></div>
           </div>
           <div className="phase-note"><strong>种下你的第一份收成</strong>锄头开垦 → 放种子 → 浇水 → 约 24 秒后用镰刀收获。鼠标指向远处时，操作会吸附到身边最近的地块；镰刀朝鼠标方向收割高亮的一排三格，成熟后可获得白萝卜和新种子。</div>
-          <div className="phase-note"><strong>整装去森林</strong>物品栏最右边是头、身、背装备栏。拖入对应装备即可穿戴；背包清空后才能卸下。西侧森林里有徘徊的史莱姆，手枪可远射，长剑可挥斩；命中后显示血量，击败后会渐渐重新出现。</div>
-          <div className="phase-note"><strong>小镇的绿屋顶商店</strong>沿路向北走，进入松果杂货店后按 E。白萝卜每个卖 18 G，贝壳 8 G，木材 6 G；120 G 的帆布背包在右侧增加 8 格。所有房屋都可以直接走进去。</div>
+          <div className="phase-note"><strong>整装去森林</strong>物品栏最右边是头、身、背装备栏。拖入对应装备即可穿戴；背包清空后才能卸下。农场北侧的森林空地里有史莱姆。手枪可以边移动边射击，枪口火光与亮色尾迹帮助辨认弹道；长剑可以近身挥斩。命中后会变红、击退并飘出伤害数字。</div>
+          <div className="phase-note"><strong>小镇的绿屋顶商店</strong>穿过河上的木桥，沿小镇主街找到广场旁的松果杂货店，进门后按 E。白萝卜每个卖 18 G，贝壳 8 G，木材 6 G；120 G 的帆布背包在右侧增加 8 格。所有房屋都可以直接走进去。</div>
           <p className="session-note">丢下的物品会留在脚边，按 E 可以拾回；出海后靠近岸边或码头才能下船。打开面板会暂停游戏。当前为试玩版本，刷新会重置本次进度。</p>
         </div>:<div>
           <TimeControls clock={status.clock} scale={settings.timeScale} resumeScale={resumeTimeScale.current} onScale={changeTimeScale} onTime={hour=>api.current?.setTime(hour)}/>

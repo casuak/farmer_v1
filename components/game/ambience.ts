@@ -32,7 +32,7 @@ void main(){
   float softWave=sin(flow*4.4+lanes)*0.5+0.5;
   float glimmer=pow(max(0.0,sin(flow*11.0+sin(vWorld.x*13.0)*1.8)),22.0);
   float broken=smoothstep(0.1,0.8,sin(vWorld.x*19.0+flow*0.4));
-  float shore=smoothstep(0.55,2.0,abs(vWorld.x-(9.0+sin(vWorld.z*0.29)*1.55)));
+  float shore=smoothstep(0.55,2.0,abs(vWorld.x-(-4.0+sin(vWorld.z*0.29)*1.55)));
   vec3 c=mix(vec3(0.24,0.56,0.59),vec3(0.47,0.75,0.66),shore*0.65+softWave*0.15);
   c+=(vColor.rgb-vec3(0.39,0.72,0.70))*0.12;
   float caustic=pow(max(0.0,sin(vWorld.x*7.0+sin(flow*2.0))*cos(flow*5.0+sin(vWorld.x*3.0))),6.0);
@@ -91,7 +91,7 @@ export function createAmbience(scene:Scene,water:Mesh,tiles:TileSeed[],riverCent
       const p=foam.particles[i],f=currents[i];
       const z=(((f.z-t*.56+40)%80+80)%80)-40,x=riverCenter(z)+f.lane;
       p.position.set(x,-.19+Math.sin(t*2+f.phase)*.006,z);
-      p.isVisible=isWater(x,z)&&Math.abs(z)>1.4&&Math.abs(z-20)>1.4;
+      p.isVisible=isWater(x,z)&&Math.abs(z)>1.9&&Math.abs(z+20)>1.9&&Math.abs(z-18)>1.9;
       p.color!.a=.20+(Math.sin(t*1.5+f.phase)+1)*.22;
     }
     foam.setParticles();

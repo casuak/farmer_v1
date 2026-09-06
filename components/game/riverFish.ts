@@ -6,7 +6,7 @@ import { riverCenter } from "./geography";
 import { Voxels,seededRandom } from "./voxel";
 
 export const RIVER_FISH_COUNT=12;
-const stretches=[[-38,-1.9],[1.9,18.1],[21.9,38]] as const;
+const stretches=[[-38,-22.2],[-17.8,-2.2],[2.2,15.8],[20.2,38]] as const;
 const smooth=(v:number)=>{const x=Math.max(0,Math.min(1,v));return x*x*(3-2*x);};
 export type RiverFish={x:number;z:number;yaw:number;scale:number;opacity:number;active:boolean;age:number;life:number;wait:number;origin:number;speed:number;lane:number;phase:number;generation:number};
 
@@ -19,7 +19,7 @@ export class RiverFishSchool {
     this.fish=Array.from({length:RIVER_FISH_COUNT},(_,i)=>({x:0,z:0,yaw:0,scale:1,opacity:0,active:false,age:0,life:0,wait:i*.12+this.random()*2.5,origin:0,speed:0,lane:0,phase:0,generation:0}));
   }
   private spawn(fish:RiverFish,index:number){
-    const random=this.random,[low,high]=stretches[index<6?0:index<9?1:2];
+    const random=this.random,[low,high]=stretches[index%stretches.length];
     fish.life=5+random()*5;fish.speed=(.32+random()*.30)*(random()<.5?-1:1);
     const distance=Math.abs(fish.speed)*fish.life;
     fish.origin=low+random()*(high-low-distance)+(fish.speed<0?distance:0);
