@@ -75,11 +75,11 @@ export function createFarmer(scene:Scene,shadow:ShadowGenerator) {
     return moving&&!aboard&&Math.floor(phase/Math.PI)!==previousStep;
   }
   function fishPose(stage:string,seconds:number,motion:boolean){
-    const cast=stage==="casting",reel=stage==="reeling",caught=stage==="catching",pulse=motion&&reel?Math.sin(seconds*12)*.07:0;
-    // Local -Y shaft points forward and slightly upward when both elbows lift.
-    limbs[3].rotation.x=cast?2.5-Math.min(1,seconds/.65)*.7:caught?2.45:1.80+pulse;
-    elbows[1].rotation.x=.40;limbs[3].rotation.y=0;limbs[3].rotation.z=-.08;
-    limbs[2].rotation.x=1.35+pulse;elbows[0].rotation.x=.75;body.rotation.x=reel?-.04:0;
+    const charging=stage==="charging",cast=stage==="casting",reel=stage==="reeling",caught=stage==="catching",pulse=motion&&reel?Math.sin(seconds*12)*.07:0;
+    // Cock the bamboo behind the head during charge, then sweep forward on release.
+    limbs[3].rotation.x=charging?2.85:cast?2.85-Math.min(1,seconds/.65)*1.05:caught?2.45:1.80+pulse;
+    elbows[1].rotation.x=charging?.65:.40;limbs[3].rotation.y=0;limbs[3].rotation.z=-.08;
+    limbs[2].rotation.x=charging?1.95:1.35+pulse;elbows[0].rotation.x=.75;body.rotation.x=charging?.06:reel?-.04:0;
   }
   return {root:avatar,body,hand:elbows[1],limbs,elbows,animate,fishPose,equip(bag:InventorySnapshot){hat.setEnabled(bag.slots[12]?.id==="hat");shirt.setEnabled(bag.slots[13]?.id==="shirt");pack.setEnabled(bag.backpack);}};
 }

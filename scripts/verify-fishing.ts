@@ -4,6 +4,7 @@ import {
   FISHING,
   FISH,
   findFishingSpot,
+  castPowerAt,
   inventoryCatchSlot,
   type FishingSpot,
 } from "../components/game/fishing";
@@ -18,6 +19,9 @@ function seededRandom(seed: number): () => number {
     return s / 0xffffffff;
   };
 }
+
+/** Float-tolerant equality, used where the triangle wave is built from modulo. */
+const approx = (a: number, b: number) => Math.abs(a - b) < 1e-9;
 
 /** A fishing line has zero radius; dry samples at the edge must not collide with the water. */
 function canStand(x: number, z: number, r = 0): boolean {
@@ -366,10 +370,134 @@ export function verifyFishing(): void {
   if (slot === null) assert.fail("expected a slot for an empty bag");
   assert(!isEquipmentSlot(slot), "never picks an equipment slot");
 
+  // --- castPowerAt triangle wave: endpoints, rise/fall, repeats, NaN/negative ---
+  assert.equal(castPowerAt(0), 0, "triangle starts at 0");
+  assert(approx(castPowerAt(FISHING.chargeSeconds), 1), "triangle peaks at the charge apex");
+  assert(approx(castPowerAt(2 * FISHING.chargeSeconds), 0), "triangle returns to 0 after a full round trip");
+  assert(approx(castPowerAt(3 * FISHING.chargeSeconds), 1), "triangle repeats on the next rise");
+  assert(approx(castPowerAt(4 * FISHING.chargeSeconds), 0), "triangle repeats on the next fall");
+  assert(approx(castPowerAt(FISHING.chargeSeconds / 2), 0.5), "midpoint of the rise is 0.5");
+  assert(approx(castPowerAt(FISHING.chargeSeconds * 1.5), 0.5), "midpoint of the fall is 0.5");
+  const period = 2 * FISHING.chargeSeconds;
+  for (const s of [0.3, 0.9, 1.5]) {
+    assert(approx(castPowerAt(s), castPowerAt(s + period)), "triangle is exactly periodic");
+    assert(approx(castPowerAt(s), castPowerAt(s + 2 * period)), "triangle is exactly periodic over two periods");
+  }
+  assert(castPowerAt(0.1) < castPowerAt(0.5) && castPowerAt(0.5) < castPowerAt(1.0), "rise is strictly monotonic");
+  assert.equal(castPowerAt(NaN), 0, "NaN power is coerced to 0");
+  assert.equal(castPowerAt(Number.POSITIVE_INFINITY), 0, "Infinity power is coerced to 0");
+  assert.equal(castPowerAt(-1), 0, "negative power is coerced to 0");
+  assert.equal(castPowerAt(-0.1), 0, "a small negative power is coerced to 0");
+
+  // --- charging: begin from idle, hold never auto-casts, release + parent cast fires ---
+  const charge = new FishingModel(seededRandom(31));
+  assert.equal(charge.beginCharge(), true, "charge starts from idle");
+  assert.equal(charge.phase, "charging");
+  assert.equal(charge.snapshot().held, true, "charging holds the rod");
+  assert.equal(charge.snapshot().castPower, 0, "charge starts at power 0");
+  assert.equal(charge.beginCharge(), false, "cannot begin a charge while already charging");
+  charge.update(0.3);
+  assert(approx(charge.snapshot().castPower, castPowerAt(0.3)), "charging power tracks the triangle wave");
+  // holding arbitrarily long never auto-casts or hooks.
+  charge.update(FISHING.chargeSeconds * 4);
+  assert.equal(charge.phase, "charging", "a long hold never auto-casts");
+  assert.equal(charge.snapshot().held, true);
+  const tBefore = charge.snapshot().phaseTime;
+  charge.release();
+  assert.equal(charge.snapshot().held, false, "release clears the hold in charging");
+  assert.equal(charge.phase, "charging", "release does not fire the cast by itself");
+  assert.equal(charge.cast(SPOT), true, "the parent can cast from charging");
+  assert.equal(charge.phase, "casting");
+  assert(approx(charge.snapshot().castPower, castPowerAt(tBefore)), "the cast preserves the released power");
+  charge.cancel();
+  assert.equal(charge.phase, "idle", "a charged cast still cancels to idle");
+
+  // --- charging pause: 0 / NaN / negative dt are no-ops ---
+  const chargeNoop = new FishingModel(seededRandom(33));
+  assert(chargeNoop.beginCharge());
+  chargeNoop.update(0.2);
+  const beforePause = chargeNoop.snapshot();
+  chargeNoop.update(0);
+  chargeNoop.update(NaN);
+  chargeNoop.update(-0.1);
+  assert.deepEqual(chargeNoop.snapshot(), beforePause, "0/NaN/negative dt do not advance charging");
+
+  // --- charging cancel / reset return to idle and clear power ---
+  const chCancel = new FishingModel(seededRandom(35));
+  assert(chCancel.beginCharge());
+  assert.equal(chCancel.cancel(), true, "charging can be cancelled");
+  assert.equal(chCancel.phase, "idle");
+  assert.equal(chCancel.snapshot().castPower, 0, "cancel clears the charge power");
+  assert(chCancel.beginCharge());
+  chCancel.update(0.5);
+  assert(chCancel.snapshot().castPower > 0, "charge accumulates power while held");
+  chCancel.reset();
+  assert.equal(chCancel.phase, "idle", "reset from charging returns to idle");
+  assert.equal(chCancel.snapshot().castPower, 0, "reset clears the charge power");
+  assert.equal(chCancel.snapshot().held, false);
+
+  // --- a plain (non-charged) idle cast remains compatible and carries power 0 ---
+  const plainCast = new FishingModel(seededRandom(37));
+  assert.equal(plainCast.cast(SPOT), true, "idle cast is still accepted");
+  assert.equal(plainCast.snapshot().phase, "casting");
+  assert.equal(plainCast.snapshot().castPower, 0, "a non-charged cast carries power 0");
+
+  // --- findFishingSpot power: strictly monotonic distance, always legal water ---
+  const RIVER_FROM = { x: -8, z: -10 };
+  const RIVER_AIM = { x: 0, z: -10 };
+  const p0 = findFishingSpot(RIVER_FROM, RIVER_AIM, canStand, 0);
+  const p025 = findFishingSpot(RIVER_FROM, RIVER_AIM, canStand, 0.25);
+  const p05 = findFishingSpot(RIVER_FROM, RIVER_AIM, canStand, 0.5);
+  const p075 = findFishingSpot(RIVER_FROM, RIVER_AIM, canStand, 0.75);
+  const p1 = findFishingSpot(RIVER_FROM, RIVER_AIM, canStand, 1);
+  assert(p0 && p025 && p05 && p075 && p1, "every power level finds a river spot");
+  const d0 = Math.hypot(p0!.x - RIVER_FROM.x, p0!.z - RIVER_FROM.z);
+  const d025 = Math.hypot(p025!.x - RIVER_FROM.x, p025!.z - RIVER_FROM.z);
+  const d05 = Math.hypot(p05!.x - RIVER_FROM.x, p05!.z - RIVER_FROM.z);
+  const d075 = Math.hypot(p075!.x - RIVER_FROM.x, p075!.z - RIVER_FROM.z);
+  const d1 = Math.hypot(p1!.x - RIVER_FROM.x, p1!.z - RIVER_FROM.z);
+  assert(d0 < d025 && d025 < d05 && d05 < d075 && d075 < d1, "identical aimed river casts land strictly farther with power");
+  for (const s of [p0, p025, p05, p075, p1]) assertSpotValid(s, RIVER_FROM, RIVER_AIM, "river");
+  // full power never punches through the far bank to land: it stays inside the run.
+  assert(d1 < FISHING.maxRange, "river full power stays inside the water run");
+  assert(!onBridge(p1!.x, p1!.z) && !onDock(p1!.x, p1!.z), "river full power never lands on a bridge or dock");
+  assert.deepEqual(findFishingSpot(RIVER_FROM,RIVER_AIM,(x,z)=>x<=p1.x&&canStand(x,z),1),p1,"A blocked far bank does not reject a cast that lands before it");
+
+  // --- sea casting: min power lands at the near end, max power casts farther ---
+  const SEA_FROM = { x: 28, z: -23 };
+  const SEA_AIM = { x: 40, z: -23 };
+  const sMin = findFishingSpot(SEA_FROM, SEA_AIM, canStand, 0);
+  const sMax = findFishingSpot(SEA_FROM, SEA_AIM, canStand, 1);
+  assert(sMin && sMax, "sea casting works at min and max power");
+  assert.equal(sMin.kind, "sea");
+  assert.equal(sMax.kind, "sea");
+  const sdMin = Math.hypot(sMin!.x - SEA_FROM.x, sMin!.z - SEA_FROM.z);
+  const sdMax = Math.hypot(sMax!.x - SEA_FROM.x, sMax!.z - SEA_FROM.z);
+  assert(sdMax > sdMin, "open sea casts strictly farther at max power");
+  assert(sdMax > sdMin * 1.5, "sea far end sits substantially beyond the near end");
+  assert(sdMin >= FISHING.minRange - 1e-9 && sdMin <= FISHING.maxRange + 1e-9, "sea min power stays in range");
+  assert(sdMax <= FISHING.maxRange + 1e-9, "sea max power stays in range");
+  for (const s of [sMin, sMax]) assertSpotValid(s, SEA_FROM, SEA_AIM, "sea");
+
+  // --- out-of-range power is clamped; non-finite power returns null ---
+  assert.deepEqual(findFishingSpot(RIVER_FROM, RIVER_AIM, canStand, -0.5), p0, "negative power clamps to 0");
+  assert.deepEqual(findFishingSpot(RIVER_FROM, RIVER_AIM, canStand, 1.5), p1, "over-1 power clamps to 1");
+  assert.equal(findFishingSpot(RIVER_FROM, RIVER_AIM, canStand, NaN), null, "NaN power yields no spot");
+  assert.equal(
+    findFishingSpot(RIVER_FROM, RIVER_AIM, canStand, Number.POSITIVE_INFINITY),
+    null,
+    "Infinity power yields no spot",
+  );
+
+  // --- casting from a bridge toward the side still reaches the outer water ---
+  const bridgeSide = findFishingSpot({ x: -4, z: -20 }, { x: -4, z: -10 }, canStand);
+  assertSpotValid(bridgeSide, { x: -4, z: -20 }, { x: -4, z: -10 }, "river");
+
   console.log(
     `Fishing regression passed: ${Object.keys(FISH).length} species, phase machine ` +
       `(cast/wait/bite/reel/catch/escape), spot validation (river/sea/distance/bridge/dock/water-edge obstacle), ` +
-      `controlled success vs no-op failure, bounded dt, cancel/reset, catch-once, inventory stacking and full-bag capacity.`,
+      `controlled success vs no-op failure, bounded dt, cancel/reset, catch-once, inventory stacking and full-bag capacity, ` +
+      `charge triangle wave, hold-vs-release casting, and power-scaled landing (monotonic / always-water / sea min-max).`,
   );
 }
 

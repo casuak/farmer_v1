@@ -20,7 +20,7 @@ export const ITEMS:Record<ItemId,{name:string;description:string;max:number;sell
   backpack:{name:"帆布背包",description:"背部装备 · 增加 8 格，清空后可卸下",max:1,sell:60,buy:120,color:"#91a46b"},
   pistol:{name:"手枪",description:"朝鼠标方向射击 · 无需补充弹药",max:1,sell:40,buy:90,color:"#8b9ca7"},
   sword:{name:"长剑",description:"朝鼠标方向挥斩 · 攻击身前的史莱姆",max:1,sell:30,buy:75,color:"#c3d0cf"},
-  fishingRod:{name:"竹钓竿",description:"到河边甩竿垂钓 · 钓上鲜鱼后可出售",max:1,sell:22,buy:60,color:"#a98a54"},
+  fishingRod:{name:"竹钓竿",description:"按住空格蓄力，松开甩竿 · 水花叹号时按空格提竿",max:1,sell:22,buy:60,color:"#a98a54"},
   carp:{name:"鲤鱼",description:"一身金鳞的池塘常客 · 可出售",max:20,sell:22,buy:0,color:"#cf9346"},
   perch:{name:"河鲈",description:"带深色条纹的河鱼 · 可出售",max:20,sell:18,buy:0,color:"#8faa4f"},
   sardine:{name:"沙丁鱼",description:"银亮亮的洄游小鱼 · 可出售",max:20,sell:12,buy:0,color:"#a8c8da"},

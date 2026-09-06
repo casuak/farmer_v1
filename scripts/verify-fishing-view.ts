@@ -26,16 +26,30 @@ export function verifyFishingView(scene:Scene,camera:Camera,shadow:ShadowGenerat
   farmer.animate(0,1/60,false,false,false,0,true,"fishingRod");farmer.fishPose("waiting",0,true);tools.rodTip.computeWorldMatrix(true);
   assert(tools.rodTip.getAbsolutePosition().y>1,"Rod tip clears the ground in the fishing pose");
   const doc=Object.getOwnPropertyDescriptor(globalThis,"document");let appended=0,removed=0;
-  const flight={className:"",alt:"",hidden:true,src:"",style:{} as Record<string,string>,setAttribute(){},remove(){removed++;}},slot={dataset:{} as Record<string,string>,getBoundingClientRect:()=>({left:180,top:250,width:40,height:40})};
+  const makeElement=()=>({className:"",alt:"",hidden:true,src:"",textContent:"",style:{} as Record<string,string>,dataset:{} as Record<string,string>,attributes:{} as Record<string,string>,appendChild(){},setAttribute(key:string,value:string){this.attributes[key]=value;},remove(){removed++;}});
+  const flight=makeElement(),slot={dataset:{} as Record<string,string>,getBoundingClientRect:()=>({left:180,top:250,width:40,height:40})};
   const canvas={getBoundingClientRect:()=>({left:0,top:0,width:512,height:256}),parentElement:{appendChild(){appended++;},querySelector:()=>slot}} as unknown as HTMLCanvasElement;
-  Object.defineProperty(globalThis,"document",{value:{createElement:()=>flight},configurable:true});
+  Object.defineProperty(globalThis,"document",{value:{createElement:(tag:string)=>tag==="img"?flight:makeElement()},configurable:true});
   try{
     camera.getViewMatrix(true);camera.getProjectionMatrix(true);scene.updateTransformMatrix();
-    const view=createFishingView(scene,camera,canvas,tools.rodTip),model=new FishingModel(()=>.25);assert.equal(appended,1);
+    const view=createFishingView(scene,camera,canvas,tools.rodTip),model=new FishingModel(()=>.25);assert.equal(appended,4);
     for(const id of ["carp","perch","sardine","redSnapper"]){const tex=scene.textures.find(t=>t.name===`caught-fish-texture-${id}`)!;assert(tex.hasAlpha);tex.getInternalTexture()!.isReady=true;}
-    const count=scene.meshes.length;model.cast(spot);view.update(model.snapshot(),shore,0,0,true,null,null);assert(view.bobber.isEnabled());assert(view.line.isEnabled());
-    model.update(.8);view.update(model.snapshot(),shore,.8,.8,true,null,null);assert.equal(model.phase,"waiting");assert(Math.abs(view.bobber.position.x-spot.x)<.001);
-    for(let i=0;i<1000&&model.snapshot().phase!=="bite";i++)model.update(.01);model.press();
+    const count=scene.meshes.length;
+    view.update(model.snapshot(),shore,0,0,true,spot,null);assert(view.charge.hidden);assert(view.biteSignal.hidden);
+    assert(model.beginCharge());model.update(FISHING.chargeSeconds*.75);
+    const powerSpot=findFishingSpot(shore,{x:-4,z:shore.z},(x,z)=>world.canWalk(x,z,0),model.snapshot().castPower);assert(powerSpot);
+    view.update(model.snapshot(),shore,1,.016,true,powerSpot,null);assert(!view.charge.hidden);assert(view.target.isEnabled());assert(!view.bobber.isEnabled());assert(!view.line.isEnabled());
+    assert(Math.abs(view.target.position.x-powerSpot.x)<1e-6);assert(Math.abs(Number(view.charge.dataset.power)-.75)<1e-6);
+    model.cancel();view.clear();assert(view.charge.hidden);assert(!view.target.isEnabled());
+    model.cast(spot);view.update(model.snapshot(),shore,0,0,true,null,null);assert(view.bobber.isEnabled());assert(view.line.isEnabled());assert(view.charge.hidden);
+    model.update(.8);view.update(model.snapshot(),shore,.8,.8,true,null,null);assert.equal(model.phase,"waiting");assert(Math.abs(view.bobber.position.x-spot.x)<.001);assert(view.biteSignal.hidden);
+    for(let i=0;i<1000&&model.snapshot().phase!=="bite";i++)model.update(.01);
+    const biteState=model.snapshot();
+    for(const motion of [true,false]){
+      view.update({...biteState,phaseTime:.9},shore,3,.016,motion,null,null);assert(!view.biteSignal.hidden);assert(view.droplets.every(m=>m.isEnabled()),"Vigorous water splash persists after the initial half-second, also visible with reduced motion");
+      const positions=view.droplets.map(m=>m.position.asArray());view.update({...biteState,phaseTime:.9},shore,3,0,motion,null,null);assert.deepEqual(view.droplets.map(m=>m.position.asArray()),positions,"Paused bite bursts freeze");
+    }
+    model.press();view.update(model.snapshot(),shore,3.1,.016,true,null,null);assert(view.biteSignal.hidden,"Hooking immediately removes the water exclamation");
     for(let i=0;i<3000&&model.snapshot().phase==="reeling";i++){const s=model.snapshot();if(s.fishPosition>s.barPosition)model.press();else model.release();model.update(1/120);}
     assert.equal(model.phase,"catching");const state=model.snapshot();assert(state.fish);const targetSlot=inventoryCatchSlot(bag,state.fish.id);assert.notEqual(targetSlot,null);
     for(const motion of [true,false]){
@@ -51,7 +65,7 @@ export function verifyFishingView(scene:Scene,camera:Camera,shadow:ShadowGenerat
     assert.equal(scene.meshes.length,count,"Fishing animation reuses its meshes");
     model.update(FISHING.catchSeconds+.1);const caught=model.takeCatch();assert(caught);assert(bag.add([{id:caught.id,count:1}]));assert.equal(bag.slots[targetSlot!]?.id,caught.id);assert.equal(model.takeCatch(),null);
     view.clear();assert(flight.hidden);view.land(targetSlot);assert.equal(slot.dataset.fishReceived,"true");view.update(model.snapshot(),shore,5,1,true,null,null);assert.equal(slot.dataset.fishReceived,undefined);
-    view.dispose();assert.equal(removed,1);assert(!view.fish.isEnabled());
+    view.dispose();assert.equal(removed,4);assert(!view.fish.isEnabled());assert(view.charge.hidden);assert(view.biteSignal.hidden);
     for(const mesh of scene.meshes){const positions=mesh.getVerticesData("position");if(positions)assert(Array.from(positions).every(Number.isFinite));}
     farmer.root.dispose();
   }finally{if(doc)Object.defineProperty(globalThis,"document",doc);else Reflect.deleteProperty(globalThis,"document");}

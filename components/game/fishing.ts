@@ -2,7 +2,7 @@ import { InventoryModel, ITEMS, isEquipmentSlot } from "./inventory";
 import type { FishId } from "./inventory";
 import { BOUNDS, isWater, isSea, onBridge, onDock } from "./geography";
 
-export type FishingPhase = "idle" | "casting" | "waiting" | "bite" | "reeling" | "catching" | "escaped";
+export type FishingPhase = "idle" | "charging" | "casting" | "waiting" | "bite" | "reeling" | "catching" | "escaped";
 export type FishingSpot = { x: number; z: number; kind: "river" | "sea" };
 export type FishCatch = { id: FishId; length: number; perfect: boolean };
 
@@ -16,6 +16,7 @@ export const FISH: Record<FishId, { name: string; minLength: number; maxLength: 
 
 export const FISHING = {
   castSeconds: 0.65,
+  chargeSeconds: 1.1,
   biteSeconds: 1.65,
   jumpSeconds: 0.8,
   flySeconds: 0.75,
@@ -39,6 +40,7 @@ export const FISHING = {
 export type FishingSnapshot = {
   phase: FishingPhase;
   phaseTime: number;
+  castPower: number;
   spot: FishingSpot | null;
   fish: FishCatch | null;
   fishPosition: number;
@@ -58,11 +60,23 @@ const BAR_MAX = 1 - BAR_HALF;
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
+/**
+ * Triangle wave that rises from 0 to 1 over `FISHING.chargeSeconds` then falls
+ * back to 0 over the same duration, repeating every 2·chargeSeconds (2.2s full
+ * round trip). NaN and negative values are coerced safely to 0.
+ */
+export function castPowerAt(seconds: number): number {
+  if (!Number.isFinite(seconds) || seconds < 0) return 0;
+  const t = seconds % (2 * FISHING.chargeSeconds);
+  return 1 - Math.abs(t / FISHING.chargeSeconds - 1);
+}
+
 export class FishingModel {
   /** Parent-published readiness flag (default false). The model never writes it. */
   canCast = false;
   private _phase: FishingPhase = "idle";
   private phaseTime = 0;
+  private castPower = 0;
   private spot: FishingSpot | null = null;
   private fish: FishCatch | null = null;
   private pendingCatch: FishCatch | null = null;
@@ -91,14 +105,20 @@ export class FishingModel {
     return this._phase !== "idle";
   }
 
-  /** Start a cast. Only allowed from idle, with a valid water spot and no unclaimed catch. */
+  /**
+   * Start a cast from idle, or fire a charged cast from `charging`. Requires a
+   * valid water spot and no unclaimed catch. Casting from charging preserves the
+   * released charge power (during `casting`/`waiting`) for state and debug; an
+   * idle cast carries power 0.
+   */
   cast(spot: FishingSpot): boolean {
-    if (this._phase !== "idle" || this.pendingCatch) return false;
+    if ((this._phase !== "idle" && this._phase !== "charging") || this.pendingCatch) return false;
     if (!spot || !Number.isFinite(spot.x) || !Number.isFinite(spot.z)) return false;
     if (spot.kind !== "river" && spot.kind !== "sea") return false;
     if (Math.abs(spot.x) > BOUNDS.x || Math.abs(spot.z) > BOUNDS.z) return false;
     if (!isWater(spot.x, spot.z) || onBridge(spot.x, spot.z) || onDock(spot.x, spot.z)) return false;
     if (spot.kind !== (isSea(spot.x, spot.z) ? "sea" : "river")) return false;
+    this.castPower = this._phase === "charging" ? castPowerAt(this.phaseTime) : 0;
     this._phase = "casting";
     this.phaseTime = 0;
     this.spot = { x: spot.x, z: spot.z, kind: spot.kind };
@@ -115,6 +135,21 @@ export class FishingModel {
     return true;
   }
 
+  /**
+   * Enter the charge wind-up. Only succeeds from idle with no unclaimed catch.
+   * Starts the power at 0 and holds it (held=true); time accumulates in `update`
+   * and the power oscillates via `castPowerAt`.
+   */
+  beginCharge(): boolean {
+    if (this._phase !== "idle" || this.pendingCatch) return false;
+    this._phase = "charging";
+    this.phaseTime = 0;
+    this.castPower = 0;
+    this.held = true;
+    this.message = "蓄力中…按住空格，松开发射";
+    return true;
+  }
+
   /** Bite -> hook the fish (held=true); reeling -> hold the bar up. Waiting cannot skip the bite. */
   press(): void {
     if (this._phase === "bite") {
@@ -124,9 +159,12 @@ export class FishingModel {
     }
   }
 
-  /** In reeling, let the bar sink. */
+  /**
+   * Clear the hold. In reeling the bar sinks; in charging this just clears the
+   * hold and never fires the cast — the parent engine decides whether to cast.
+   */
   release(): void {
-    if (this._phase === "reeling") this.held = false;
+    if (this._phase === "reeling" || this._phase === "charging") this.held = false;
   }
 
   /** Cancel back to idle. Catching is locked so the fish is always claimed. */
@@ -140,6 +178,12 @@ export class FishingModel {
   update(dt: number): void {
     if (!Number.isFinite(dt) || dt <= 0) return;
     if (this._phase === "idle") return;
+    if (this._phase === "charging") {
+      // Charging has no physics or transitions: evaluate the wave once, not 7200 substeps.
+      this.phaseTime += Math.min(dt,60);
+      this.castPower = castPowerAt(this.phaseTime);
+      return;
+    }
     let remaining = dt;
     let steps = 0;
     while (remaining > 0 && steps < 7200) {
@@ -157,6 +201,7 @@ export class FishingModel {
     return {
       phase: this._phase,
       phaseTime: this.phaseTime,
+      castPower: this.castPower,
       spot: this.spot ? { ...this.spot } : null,
       fish: this.fish ? { ...this.fish } : null,
       fishPosition: this.fishPosition,
@@ -187,6 +232,10 @@ export class FishingModel {
   private tick(s: number): void {
     this.phaseTime += s;
     switch (this._phase) {
+      case "charging":
+        // Power oscillates with hold time; long holds never auto-cast or hook.
+        this.castPower = castPowerAt(this.phaseTime);
+        break;
       case "casting":
         if (this.phaseTime >= FISHING.castSeconds) this.enterWaiting();
         break;
@@ -318,6 +367,7 @@ export class FishingModel {
   private toIdle(): void {
     this._phase = "idle";
     this.phaseTime = 0;
+    this.castPower = 0;
     this.spot = null;
     this.fish = null;
     this.pendingCatch = null;
@@ -335,13 +385,20 @@ export class FishingModel {
  * direction. Accepts only real water inside BOUNDS, never a bridge/dock tile, and
  * rejects casts blocked by walls/trees/fences (via optional world.canWalk on the
  * land part of the path) or that would skip past far-side re-entry into water.
+ *
+ * `power` (clamped to 0..1) linearly maps to the near -> far end of the first
+ * continuous water run within range, so a river never lands full power on the far
+ * shore land while open sea casts strictly farther. Non-finite power -> null.
  */
 export function findFishingSpot(
   player: { x: number; z: number },
   aim: { x: number; z: number },
   canStand?: (x: number, z: number) => boolean,
+  power = 0,
 ): FishingSpot | null {
   if (![player.x,player.z,aim.x,aim.z].every(Number.isFinite)) return null;
+  if (!Number.isFinite(power)) return null;
+  const pw = clamp(power, 0, 1);
   const dx = aim.x - player.x;
   const dz = aim.z - player.z;
   const length = Math.hypot(dx, dz);
@@ -349,27 +406,44 @@ export function findFishingSpot(
   const ux = dx / length;
   const uz = dz / length;
   const step = 0.08;
-  let seenWater = false;
-  let gapAfterWater = false;
+  let runStart = -1;
+  let runEnd = -1;
+  let inRun = false;
   for (let d = step; d <= FISHING.maxRange + 1e-9; d += step) {
     const x = player.x + ux * d;
     const z = player.z + uz * d;
     if (Math.abs(x) > BOUNDS.x || Math.abs(z) > BOUNDS.z) break;
-    if (onBridge(x, z) || onDock(x, z)) continue;
-    if (isWater(x, z)) {
-      if (d < FISHING.minRange) {
-        seenWater = true;
-        continue;
-      }
-      if (gapAfterWater) return null;
-      return { x, z, kind: isSea(x, z) ? "sea" : "river" };
+    // A bridge/dock tile is a man-made platform. Before the first water it is
+    // transparent (so a cast from a bridge/dock can reach the outer water); once
+    // inside a water run it closes the run so the interpolation never spans it.
+    if (onBridge(x, z) || onDock(x, z)) {
+      if (inRun) break;
+      continue;
     }
-    // Test the line as a point (world.canWalk with radius 0). A body radius
-    // would falsely hit water from the last dry sample just before the bank.
+    if (isWater(x, z)) {
+      if (!inRun) {
+        inRun = true;
+        runStart = d;
+      }
+      runEnd = d;
+      continue;
+    }
+    // The far bank ends the water run; an obstacle there cannot block a line
+    // that lands in front of it. Only dry ground BEFORE the water can block.
+    if (inRun) break;
+    // Radius 0 prevents the final dry shoreline sample from colliding with water.
     if (canStand && !canStand(x, z)) return null;
-    if (seenWater) gapAfterWater = true;
   }
-  return null;
+  if (runStart < 0) return null;
+  const near = Math.max(FISHING.minRange, runStart);
+  const far = Math.min(FISHING.maxRange, runEnd);
+  if (near > far) return null;
+  const dist = near + pw * (far - near);
+  const x = player.x + ux * dist;
+  const z = player.z + uz * dist;
+  // The interpolated point must never cross onto a bridge/dock or out of water.
+  if (!(isWater(x, z) && !onBridge(x, z) && !onDock(x, z))) return null;
+  return { x, z, kind: isSea(x, z) ? "sea" : "river" };
 }
 
 /**

@@ -57,7 +57,9 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   const heldTools=createHeldTools(scene,farmer.hand,shadow);heldTools.select(bag.hand);
   const gunfire=createGunfire(scene,heldTools.muzzle);
   const fishing=new FishingModel(),fishingView=createFishingView(scene,camera,canvas,heldTools.rodTip);
-  let fishingSlot:number|null=null;
+  let fishingSlot:number|null=null,castAim:Point|null=null;
+  const fishingInputs=new Set<string>();
+  let chargingInput:string|null=null;
   const ringMat=new StandardMaterial("player-ring",scene);ringMat.diffuseColor=Color3.FromHexString("#f6ecd1");ringMat.emissiveColor=Color3.FromHexString("#f6ecd1").scale(.6);ringMat.specularColor=Color3.Black();
   const ring=MeshBuilder.CreateTorus("player-ground-ring",{diameter:.84,thickness:.037,tessellation:32},scene);ring.material=ringMat;ring.isPickable=false;
   const dustMat=new StandardMaterial("footstep-dust",scene);dustMat.diffuseColor=Color3.FromHexString("#dcc593");dustMat.specularColor=Color3.Black();dustMat.alpha=.45;
@@ -85,15 +87,19 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   let t=0,statusClock=0,stepClock=0,paddleClock=0,dustIndex=0,lastMoving=false,desiredYaw=-.7,movementYaw=-.7;
   let mouse:{x:number;y:number}|null=null,aimPoint:Point|null=null,hovered:{coord:Point;override?:TileKind}|null=null,actionCooldown=0,actionTime=0,hoverClock=0;
   const tracked=new Vector3(SPAWN.x,0,SPAWN.z+1.4),directionToCamera=new Vector3(.5,Math.SQRT1_2,-.5);
-  const clearInput=()=>{keys.clear();mode.release();fishing.release();audio.stop();paddleClock=0;};
-  function fishingTarget(useFacing=false){
-    if(fishing.active||bag.hand!=="fishingRod"||boat.aboard||world.roomAt(avatar.position))return null;
-    const aim=!useFacing&&aimPoint?aimPoint:{x:avatar.position.x-Math.sin(desiredYaw)*5.6,z:avatar.position.z-Math.cos(desiredYaw)*5.6};
-    // A fishing line is a point, not a walking body: a radius would falsely
-    // collide with the water from the final dry sample at some bank offsets.
-    return findFishingSpot(avatar.position,aim,(x,z)=>world.canWalk(x,z,0));
+  function clearFishingInput(){
+    fishingInputs.clear();chargingInput=null;fishing.release();
+    // Lost focus / pause is cancellation, never an accidental release-to-cast.
+    if(fishing.phase==="charging"){fishing.cancel();castAim=null;fishingView.clear();}
   }
-  function fishingState():FishingSnapshot {return {...fishing.snapshot(),canCast:!paused&&!fishing.active&&!!fishingTarget()};}
+  const clearInput=()=>{keys.clear();mode.release();clearFishingInput();audio.stop();paddleClock=0;};
+  function fishingTarget(useFacing=false,power=fishing.snapshot().castPower){
+    if((fishing.active&&fishing.phase!=="charging")||bag.hand!=="fishingRod"||boat.aboard||world.roomAt(avatar.position))return null;
+    const aim=castAim??(!useFacing&&aimPoint?aimPoint:{x:avatar.position.x-Math.sin(desiredYaw)*FISHING.maxRange,z:avatar.position.z-Math.cos(desiredYaw)*FISHING.maxRange});
+    // A fishing line is a point, not a walking body; radius 0 clears the shoreline.
+    return findFishingSpot(avatar.position,aim,(x,z)=>world.canWalk(x,z,0),power);
+  }
+  function fishingState():FishingSnapshot {return {...fishing.snapshot(),canCast:!paused&&!fishing.active&&!!fishingTarget(false,0)};}
   const nearbyItem=()=>{const item=groundItems.nearest(avatar.position);return item&&(boat.aboard||world.clearReach(avatar.position,item.position))?item:null;};
   function interaction():Interaction|null {
     if(fishing.active)return null;
@@ -110,7 +116,10 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     canvas.dataset.hoveredTile=hovered?`${hovered.coord.x},${hovered.coord.z}`:"";canvas.dataset.cameraElevation="45";canvas.dataset.cameraProjection="orthographic";
     canvas.dataset.gameHour=clock.hour.toFixed(2);canvas.dataset.timeScale=String(settings.timeScale);
     canvas.dataset.bloomEnabled=String(settings.bloom&&!lighting.compatible);
-    canvas.dataset.fishingPhase=fishing.phase;canvas.dataset.fishingSlot=fishingSlot===null?"":String(fishingSlot);
+    const fishingStatus=fishing.snapshot();
+    canvas.dataset.fishingPhase=fishingStatus.phase;canvas.dataset.fishingSlot=fishingSlot===null?"":String(fishingSlot);
+    canvas.dataset.fishingPower=fishingStatus.castPower.toFixed(3);
+    canvas.dataset.fishingSpot=fishingStatus.spot?`${fishingStatus.spot.x.toFixed(3)},${fishingStatus.spot.z.toFixed(3)}`:"";
     heldTools.select(boat.aboard?null:bag.hand);farmer.equip(bag.snapshot());statusClock=0;
   }
   const announce=(result:InventoryResult)=>{events.action(result);publish();};
@@ -119,21 +128,38 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   const selectSlot=(index:number)=>{if(fishing.active)return;const previous=bag.selected;bag.select(index);if(bag.selected!==previous)audio.play("select");hoverClock=.2;publish();};
   const toggleRun=()=>{if(paused||fishing.active)return;mode.toggle();publish();};
   const key=(k:string,down:boolean)=>{k=k.toLowerCase();if(down&&fishing.active)return;if(k==="shift"){if(!paused||!down){mode.shift(down);publish();}return;}if(down&&!paused)keys.add(k);else keys.delete(k);};
-  function cancelFishing(){if(paused)return;if(fishing.cancel()){clearInput();fishingView.clear();fishingSlot=null;announce({ok:true,message:"收起钓竿 · 换一处水面再试试"});}}
-  function fishingPress(useFacing=false){
-    if(paused)return;
+  function cancelFishing(){if(paused)return;if(fishing.cancel()){clearInput();castAim=null;fishingView.clear();fishingSlot=null;announce({ok:true,message:"收起钓竿 · 换一处水面再试试"});}}
+  function fishingPress(useFacing=false,source="ui"){
+    if(paused||fishingInputs.has(source))return;
+    fishingInputs.add(source);
     if(fishing.active){const before=fishing.phase;fishing.press();if(before!==fishing.phase){audio.play("reel");publish();}return;}
     if(bag.hand!=="fishingRod")return;
-    if(boat.aboard){announce({ok:false,message:"先靠岸下船，再站在河岸或码头抛竿"});return;}
-    pickTile();const spot=fishingTarget(useFacing);
-    if(!spot){announce({ok:false,message:"走近河岸或码头，点击前方 6 格内的开阔水面 · 木桥和陆地不能落钩"});return;}
+    if(boat.aboard){announce({ok:false,message:"先靠岸下船，再站在河岸或码头甩竿"});return;}
+    pickTile();const spot=fishingTarget(useFacing,0);
+    if(!spot){announce({ok:false,message:"走近河岸或码头，朝向 6 格内的开阔水面，再按住空格蓄力甩竿"});return;}
     const pool=spot.kind==="river"?["carp","perch"] as const:["sardine","redSnapper"] as const;
-    if(pool.some(id=>inventoryCatchSlot(bag,id)===null)){announce({ok:false,message:"物品栏放不下新的鱼了 · 先腾出一格，再来抛竿"});return;}
-    if(fishing.cast(spot)){clearInput();fishingSlot=null;actionTime=0;lastMoving=false;desiredYaw=Math.atan2(avatar.position.x-spot.x,avatar.position.z-spot.z);body.rotation.y=desiredYaw;audio.play("cast");publish();}
+    if(pool.some(id=>inventoryCatchSlot(bag,id)===null)){announce({ok:false,message:"物品栏放不下新的鱼了 · 先腾出一格，再来甩竿"});return;}
+    if(fishing.beginCharge()){
+      // Freeze the aim, not the mouse position, for the whole charge/release gesture.
+      castAim={x:spot.x,z:spot.z};chargingInput=source;keys.clear();mode.release();
+      fishingSlot=null;actionTime=0;lastMoving=false;desiredYaw=Math.atan2(avatar.position.x-spot.x,avatar.position.z-spot.z);body.rotation.y=desiredYaw;publish();
+    }
   }
-  const fishingRelease=()=>fishing.release();
+  function fishingRelease(source="ui"){
+    if(!fishingInputs.delete(source))return;
+    if(source===chargingInput&&fishing.phase==="charging"){
+      chargingInput=null;
+      if(paused){clearFishingInput();return;}
+      const spot=fishingTarget(false,fishing.snapshot().castPower);
+      if(spot&&fishing.cast(spot)){castAim=null;fishingInputs.clear();audio.play("cast");publish();}
+      else{fishing.cancel();castAim=null;fishingView.clear();announce({ok:false,message:"落点不在开阔水面，收回钓竿"});}
+      return;
+    }
+    if(fishingInputs.size===0)fishing.release();
+  }
   function finishCatch(){
     const caught=fishing.takeCatch();if(!caught)return;
+    clearFishingInput();
     const slot=inventoryCatchSlot(bag,caught.id);fishingView.clear();
     if(bag.add([{id:caught.id,count:1}])){fishingView.land(slot);audio.play("pickup");announce({ok:true,message:`钓到${FISH[caught.id].name} ×1 · ${caught.length} cm${caught.perfect?" · 完美钓获！":""}`});}
     else{groundItems.add({id:caught.id,count:1},avatar.position);announce({ok:false,message:"物品栏已满 · 鱼留在脚边，按 E 拾取"});}
@@ -179,7 +205,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   }
   function performAction(useFacing=false){
     if(paused)return;
-    if(bag.hand==="fishingRod"||fishing.active){fishingPress(useFacing);return;}
+    if(bag.hand==="fishingRod"||fishing.active){fishingPress(useFacing,useFacing?"keyboard":"pointer");return;}
     if(actionCooldown>0)return;
     if(boat.aboard){announce({ok:false,message:"先靠岸下船，再使用工具或武器"});return;}
     const hand=bag.hand;if(!hand){announce({ok:false,message:"先在物品栏选择农具或武器"});return;}
@@ -217,21 +243,25 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     if(el?.closest?.('input,textarea,[role="dialog"],[contenteditable="true"]'))return;
     if(e.key.startsWith("Arrow")&&el?.closest?.('[role="radiogroup"],[role="slider"],[data-inventory-slot]'))return;
     if(e.key==="Escape"&&fishing.active){e.preventDefault();cancelFishing();return;}
-    if(e.code==="Space"&&bag.hand==="fishingRod"&&(!el?.closest?.('button,[role="switch"],[role="radio"]')||!!el?.closest?.('[data-inventory-slot]'))){e.preventDefault();if(!e.repeat)fishingPress(true);return;}
+    if(e.code==="Space"&&bag.hand==="fishingRod"&&(!el?.closest?.('button,[role="switch"],[role="radio"]')||!!el?.closest?.('[data-inventory-slot]'))){e.preventDefault();if(!e.repeat)fishingPress(true,"keyboard");return;}
     if(e.code==="Space"&&el?.closest?.('button,[role="switch"],[role="radio"]'))return;
     if(/^[1-9]$/.test(e.key)){e.preventDefault();selectSlot(Number(e.key)-1);return;}
     if(e.key.toLowerCase()==="e"){e.preventDefault();if(!e.repeat)interact();return;}
     if(e.code==="Space"){e.preventDefault();if(!e.repeat)performAction(true);return;}
     if(["w","a","s","d","arrowup","arrowdown","arrowleft","arrowright","shift"].includes(e.key.toLowerCase())){e.preventDefault();if(e.key!=="Shift"||!e.repeat)key(e.key,true);}
   };
-  const keyUp=(e:KeyboardEvent)=>{key(e.key,false);if(e.code==="Space")fishingRelease();},visibility=()=>{if(document.hidden)clearInput();else renderGuard.watch();};
+  const keyUp=(e:KeyboardEvent)=>{key(e.key,false);if(e.code==="Space")fishingRelease("keyboard");},visibility=()=>{if(document.hidden)clearInput();else renderGuard.watch();};
   window.addEventListener("keydown",keyDown);window.addEventListener("keyup",keyUp);window.addEventListener("blur",clearInput);document.addEventListener("visibilitychange",visibility);
   const unlockAudio=(event:Event)=>{if(event.isTrusted)audio.unlock();};
   document.addEventListener("pointerdown",unlockAudio,true);document.addEventListener("keydown",unlockAudio,true);
   const movePointer=(e:PointerEvent)=>{const b=canvas.getBoundingClientRect();mouse={x:e.clientX-b.left,y:e.clientY-b.top};};
   const pointer=(e:PointerEvent)=>{if(paused||e.button!==0)return;canvas.focus({preventScroll:true});movePointer(e);if(bag.hand==="fishingRod")canvas.setPointerCapture(e.pointerId);performAction();};
-  const pointerUp=(e:PointerEvent)=>{if(e.button===0){fishingRelease();if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);}};
-  window.addEventListener("pointerup",pointerUp);window.addEventListener("pointercancel",fishingRelease);canvas.addEventListener("lostpointercapture",fishingRelease);
+  const pointerUp=(e:PointerEvent)=>{if(e.button===0){fishingRelease("pointer");if(canvas.hasPointerCapture(e.pointerId))canvas.releasePointerCapture(e.pointerId);}};
+  const cancelPointer=()=>{
+    const charging=chargingInput==="pointer"&&fishing.phase==="charging";
+    if(charging){clearFishingInput();publish();}else fishingRelease("pointer");
+  };
+  window.addEventListener("pointerup",pointerUp);window.addEventListener("pointercancel",cancelPointer);canvas.addEventListener("lostpointercapture",cancelPointer);
   const leavePointer=()=>{mouse=null;aimPoint=null;hovered=null;farmView.hover(null);events.hover(null);};
   canvas.addEventListener("pointerdown",pointer);canvas.addEventListener("pointermove",movePointer);canvas.addEventListener("pointerleave",leavePointer);
   const contextLost=()=>{clearInput();renderGuard.dispose();onError("画面连接已中断，请刷新页面重新进入农场。");};canvas.addEventListener("webglcontextlost",contextLost);
@@ -304,12 +334,12 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   };
   publish();engine.runRenderLoop(tick);
   return {
-    settings(s){settings=s;audio.settings(s.sound,s.volume);scene.shadowsEnabled=s.shadows;lighting.setBloom(s.bloom);renderGuard.watch();},pause(p){paused=p;clearInput();if(p){lastMoving=false;boat.moving=false;}},key,toggleRun,interact,selectSlot,fishingPress:()=>fishingPress(),fishingRelease,cancelFishing,fishingState,
+    settings(s){settings=s;audio.settings(s.sound,s.volume);scene.shadowsEnabled=s.shadows;lighting.setBloom(s.bloom);renderGuard.watch();},pause(p){paused=p;clearInput();if(p){lastMoving=false;boat.moving=false;}},key,toggleRun,interact,selectSlot,fishingPress:()=>fishingPress(false,"ui"),fishingRelease:()=>fishingRelease("ui"),cancelFishing,fishingState,
     setTime(hour){clock.setHour(hour);renderGuard.watch();publish();},
     moveItem(from,to){if(fishing.active)return;const result=bag.move(from,to);if(result.ok)audio.play("select");announce(result);},
     dropItem(index){if(paused||fishing.active)return;if(index===14&&bag.backpackOccupied){announce({ok:false,message:"请先清空背包，再卸下或丢弃"});return;}const item=bag.drop(index);if(!item){announce({ok:false,message:"先选择要丢弃的物品"});return;}groundItems.add(item,avatar.position);audio.play("drop");announce({ok:true,message:`放下${ITEMS[item.id].name} ×${item.count} · 按 E 可重新拾取`});},
     buyItem(id){trade(()=>bag.buy(id));},sellItem(index,all){trade(()=>bag.sell(index,all));},buyBackpack(){trade(()=>bag.buyBackpack());},
     reset(){clearInput();if(fishing.phase==="catching"){fishing.update(FISHING.catchSeconds);finishCatch();}fishing.reset();fishingView.clear();fishingSlot=null;boat.reset();avatar.position.set(SPAWN.x,0,SPAWN.z);desiredYaw=movementYaw=-.7;tracked.set(SPAWN.x,0,SPAWN.z+1.4);publish();},
-    dispose(){disposed=true;renderGuard.dispose();clearInput();fishing.reset();fishingView.dispose();window.removeEventListener("pointerup",pointerUp);window.removeEventListener("pointercancel",fishingRelease);canvas.removeEventListener("lostpointercapture",fishingRelease);audio.dispose();observer.disconnect();window.removeEventListener("resize",resize);window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);window.removeEventListener("blur",clearInput);document.removeEventListener("visibilitychange",visibility);document.removeEventListener("pointerdown",unlockAudio,true);document.removeEventListener("keydown",unlockAudio,true);canvas.removeEventListener("pointerdown",pointer);canvas.removeEventListener("pointermove",movePointer);canvas.removeEventListener("pointerleave",leavePointer);canvas.removeEventListener("webglcontextlost",contextLost);engine.stopRenderLoop(tick);scene.dispose();engine.dispose();},
+    dispose(){disposed=true;renderGuard.dispose();clearInput();fishing.reset();fishingView.dispose();window.removeEventListener("pointerup",pointerUp);window.removeEventListener("pointercancel",cancelPointer);canvas.removeEventListener("lostpointercapture",cancelPointer);audio.dispose();observer.disconnect();window.removeEventListener("resize",resize);window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);window.removeEventListener("blur",clearInput);document.removeEventListener("visibilitychange",visibility);document.removeEventListener("pointerdown",unlockAudio,true);document.removeEventListener("keydown",unlockAudio,true);canvas.removeEventListener("pointerdown",pointer);canvas.removeEventListener("pointermove",movePointer);canvas.removeEventListener("pointerleave",leavePointer);canvas.removeEventListener("webglcontextlost",contextLost);engine.stopRenderLoop(tick);scene.dispose();engine.dispose();},
   };
 }

@@ -68,9 +68,9 @@ export default function FarmGame(){
   const titles={help:"在松溪，慢慢生活",settings:"让画面更合心意",shop:"松果杂货店",map:"松溪四区"};
   const descriptions={help:"种一片菜圃，走过森林，再乘小船去看海。",settings:"保持清晰的固定视角，调整适合你的画面。",shop:"欢迎光临。收成可以换成金币，也可以添置新的背包。",map:"从农场出发，穿过林道与木桥，走进小镇和海滩。"};
   const period=timeOfDay(status.clock.minutes/60),ClockIcon=period==="夜晚"?Moon:period==="黄昏"?Sunset:period==="清晨"?Sunrise:Sun;
-  const fishingActive=status.fishing.phase!=="idle",rodSelected=status.bag.slots[status.bag.selected]?.id==="fishingRod";
+  const fishingActive=status.fishing.phase!=="idle",fishingFight=status.fishing.phase==="reeling"||status.fishing.phase==="catching";
   return <main className={`farm phase-three ${period==="夜晚"?"is-night":""} ${fishingActive?"is-fishing":""}`} aria-label="松溪农场，3D 体素游戏">
-    <canvas className="game-canvas" ref={canvas} tabIndex={0} aria-label="游戏场景。WASD 移动，Shift 切换跑步，E 互动，滚轮缩放，1 至 9 选物品。左键操作高亮地块或朝鼠标攻击，5 为手枪，6 为长剑，7 为钓鱼竿。点击水面抛竿，咬钩时点击提竿，按住左键或空格控制绿条，Esc 收竿。"/>
+    <canvas className="game-canvas" ref={canvas} tabIndex={0} aria-label="游戏场景。WASD 移动，Shift 切换跑步，E 互动，滚轮缩放，1 至 9 选物品。左键操作高亮地块或朝鼠标攻击，5 为手枪，6 为长剑，7 为钓鱼竿。按住空格或水面蓄力，松开甩竿；力度越大甩得越远。水面出现激烈水花和叹号时按空格提竿，按住左键或空格控制绿条，Esc 收竿。"/>
     <div className="vignette"/>
     <div className="hud brand glass"><div className="brand-icon"><Sprout/></div><div><h1>松溪农场</h1><p>PINEBROOK</p></div></div>
     <div className="hud chapter"><span/>第三章 · 山海之间</div>
@@ -83,7 +83,7 @@ export default function FarmGame(){
       <div className="keyboard-move"><kbd>Shift</kbd><span>切换步行 / 跑步</span></div>
       <div className="touch-move">方向按钮移动<br/>点击步跑按钮切换</div>
     </div>
-    {ready&&!error&&(rodSelected||fishingActive)&&<FishingOverlay state={status.fishing} readState={()=>api.current?.fishingState()??status.fishing} onPress={()=>api.current?.fishingPress()} onRelease={()=>api.current?.fishingRelease()} onCancel={()=>api.current?.cancelFishing()} paused={panel!==null}/>}
+    {ready&&!error&&fishingFight&&<FishingOverlay state={status.fishing} readState={()=>api.current?.fishingState()??status.fishing} onPress={()=>api.current?.fishingPress()} onRelease={()=>api.current?.fishingRelease()} onCancel={()=>api.current?.cancelFishing()} paused={panel!==null}/>}
     <InventoryUI bag={status.bag} locked={fishingActive} inspector={<TileInspector tile={tileInfo}/>} onSelect={i=>api.current?.selectSlot(i)} onMove={(a,b)=>api.current?.moveItem(a,b)} onDrop={i=>api.current?.dropItem(i)}/>
     <div className="hud adventure-actions">
       <button className="movement-toggle glass" aria-pressed={status.running} disabled={status.aboard||fishingActive} onClick={()=>api.current?.toggleRun()} title="按一下 Shift 切换，不需要一直按住">{status.aboard?<Ship size={16}/>:status.running?<Wind size={16}/>:<Footprints size={16}/>}<span>{status.aboard?"驾船中":status.running?"跑步 · 4×":"步行 · 2×"}</span><kbd>Shift</kbd></button>
@@ -113,12 +113,14 @@ export default function FarmGame(){
             <div className="help-row">工具 / 朝鼠标攻击<span><MousePointer2 size={16}/>左键 / <kbd>Space</kbd></span></div>
             <div className="help-row">初始武器位置<span><kbd>5</kbd>手枪 · <kbd>6</kbd>长剑</span></div>
             <div className="help-row">选择钓竿 / 收竿<span><kbd>7</kbd>钓鱼竿 · <kbd>Esc</kbd>取消</span></div>
+            <div className="help-row">蓄力甩竿<span>按住空格 · 力度往返 · 松开甩出</span></div>
+            <div className="help-row">水花 + 叹号时提竿<span><kbd>Space</kbd>进入搏斗</span></div>
             <div className="help-row">钓鱼条上浮 / 下沉<span>按住左键或空格 / 松开</span></div>
             <div className="help-row">缩放视角<span>滚轮向上拉近 / 向下拉远</span></div>
             <div className="help-row">整理和丢下<span>拖到另一格 / 拖到场景</span></div>
           </div>
           <div className="phase-note"><strong>种下你的第一份收成</strong>锄头开垦 → 放种子 → 浇水 → 约 24 秒后用镰刀收获。鼠标指向远处时，操作会吸附到身边最近的地块；镰刀朝鼠标方向收割高亮的一排三格，成熟后可获得白萝卜和新种子。</div>
-          <div className="phase-note"><strong>把春天钓进物品栏</strong>初始第 7 格已有竹钓竿。走到河岸、木桥边或海边码头，点击 6 格内的水面抛竿（空格朝面前抛）。浮漂出现咬钩提示时，立即点击或按空格提竿；按住让绿色条上浮，松开下沉，让鱼待在绿条里，钓获进度满格就成功。鱼会从落钩处跃出，再飞入物品格！河里有鲤鱼、河鲈，海里有沙丁鱼、红鲷，都可到杂货店出售。触屏可点水面抛竿，再长按钓鱼面板按钮控鱼；Esc 或 × 收竿，打开面板会暂停。</div>
+          <div className="phase-note"><strong>把春天钓进物品栏</strong>初始第 7 格已有竹钓竿。走近河岸或码头，面向水面按住空格蓄力（也可按住鼠标指向的水面）。角色头顶的细力度条会从小到大再往回波动，松开甩竿，力度越大落点越远，水面圆圈会预示落点。等待时不显示提示板，请盯住浮漂；出现激烈水花和叹号时立即按空格或点水面提竿，才会打开搏斗面板。按住让绿色条上浮，松开下沉，包住鱼直到进度满格。鱼会跃出水面，再飞入物品栏！河里有鲤鱼、河鲈，海里有沙丁鱼、红鲷，都可出售。触屏同样长按水面蓄力、松开甩竿，叹号出现后点水面提竿，再长按面板按钮控鱼。Esc 收竿；打开面板或失去焦点会取消尚未甩出的蓄力，已落水的钓线会暂停。</div>
           <div className="phase-note"><strong>整装去森林</strong>物品栏最右边是头、身、背装备栏。拖入对应装备即可穿戴；背包清空后才能卸下。农场北侧的森林空地里有史莱姆。手枪可以边移动边射击，枪口火光与亮色尾迹帮助辨认弹道；长剑可以近身挥斩。命中后会变红、击退并飘出伤害数字。镇民也会被击中：他们受了伤就会吓一跳，双手向前一扑，转身逃跑，过一阵才慢慢回到日常路线。</div>
           <div className="phase-note"><strong>小镇的绿屋顶商店</strong>穿过河上的木桥，沿小镇主街找到广场旁的松果杂货店，进门后按 E。白萝卜每个卖 18 G，贝壳 8 G，木材 6 G；120 G 的帆布背包在右侧增加 8 格。所有房屋都可以直接走进去。</div>
           <p className="session-note">丢下的物品会留在脚边，按 E 可以拾回；出海后靠近岸边或码头才能下船。打开面板会暂停游戏。当前为试玩版本，刷新会重置本次进度。</p>

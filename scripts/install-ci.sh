@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -eu
+# pipefail 不是所有 shell 都支持(如 Windows 上的 busybox ash / dash), 支持时启用
+if (set -o pipefail) 2>/dev/null; then set -o pipefail; fi
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
