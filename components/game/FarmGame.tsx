@@ -13,7 +13,7 @@ import InventoryUI from "./InventoryUI";
 import TileInspector from "./TileInspector";
 import ShopPanel from "./ShopPanel";
 import WorldMap from "./WorldMap";
-import TimeControls from "./TimeControls";
+import TimeControls,{QuickTime} from "./TimeControls";
 import { DayNightClock,formatClock,timeOfDay } from "./dayNight";
 
 type Panel="help"|"settings"|"shop"|"map"|null;
@@ -66,11 +66,12 @@ export default function FarmGame(){
   const descriptions={help:"种一片菜圃，走过森林，再乘小船去看海。",settings:"保持清晰的固定视角，调整适合你的画面。",shop:"欢迎光临。收成可以换成金币，也可以添置新的背包。",map:"四个区域相连，沿路就能遇见新的风景。"};
   const period=timeOfDay(status.clock.minutes/60),ClockIcon=period==="夜晚"?Moon:period==="黄昏"?Sunset:period==="清晨"?Sunrise:Sun;
   return <main className={`farm phase-three ${period==="夜晚"?"is-night":""}`} aria-label="松溪农场，3D 体素游戏">
-    <canvas className="game-canvas" ref={canvas} tabIndex={0} aria-label="游戏场景。WASD 移动，Shift 切换跑步，E 互动，鼠标滚轮缩放，1 至 9 选物品，点击邻近地块使用工具。"/>
+    <canvas className="game-canvas" ref={canvas} tabIndex={0} aria-label="游戏场景。WASD 移动，Shift 切换跑步，E 互动，滚轮缩放，1 至 9 选物品。左键操作高亮地块或朝鼠标攻击，5 为手枪，6 为长剑。"/>
     <div className="vignette"/>
     <div className="hud brand glass"><div className="brand-icon"><Sprout/></div><div><h1>松溪农场</h1><p>PINEBROOK</p></div></div>
     <div className="hud chapter"><span/>第三章 · 山海之间</div>
     <div className="hud calendar glass"><ClockIcon className="weather-icon"/><button className="calendar-clock" onClick={()=>setPanel("settings")} title="调整昼夜与时间流速" aria-label={`春 ${status.clock.day} 日 ${formatClock(status.clock.minutes)}，${period}。打开时间设置`}><time>{formatClock(status.clock.minutes)}</time><small>春 · {String(status.clock.day).padStart(2,"0")} 日 · {period}</small></button><div className="gold-wallet" aria-label={`${status.bag.gold} 金币`}><Coins/><strong>{status.bag.gold.toLocaleString()}<small>G</small></strong></div></div>
+    <QuickTime clock={status.clock} paused={settings.timeScale===0} onPause={()=>changeTimeScale(settings.timeScale===0?resumeTimeScale.current:0)} onTime={hour=>api.current?.setTime(hour)}/>
     <button className="hud mini-map-card glass" onClick={()=>setPanel("map")} title="打开区域地图" aria-label="打开区域地图"><div className="mini-map-title"><Map size={14}/><span>松溪与海</span><Plus size={12}/></div><WorldMap x={status.x} z={status.z} aboard={status.aboard} compact/></button>
     <div className="hud place"><MapPin/><strong>{status.location}</strong></div>
     <div className="hud movement-help glass" aria-label="移动操作提示">
@@ -104,11 +105,13 @@ export default function FarmGame(){
             <div className="help-row">步行 2× / 跑步 4×<span><kbd>Shift</kbd>按一下切换</span></div>
             <div className="help-row">登船、下船、拾取、交谈<span><kbd>E</kbd> / 点击互动按钮</span></div>
             <div className="help-row">选择物品<span><kbd>1</kbd>–<kbd>9</kbd>或点击物品格</span></div>
-            <div className="help-row">使用工具<span><MousePointer2 size={16}/>左键 / <kbd>Space</kbd></span></div>
+            <div className="help-row">工具 / 朝鼠标攻击<span><MousePointer2 size={16}/>左键 / <kbd>Space</kbd></span></div>
+            <div className="help-row">初始武器位置<span><kbd>5</kbd>手枪 · <kbd>6</kbd>长剑</span></div>
             <div className="help-row">缩放视角<span>滚轮向上拉近 / 向下拉远</span></div>
             <div className="help-row">整理和丢下<span>拖到另一格 / 拖到场景</span></div>
           </div>
-          <div className="phase-note"><strong>种下你的第一份收成</strong>锄头开垦 → 放种子 → 浇水 → 约 24 秒后用镰刀收获。只能操作脚下和周围一格；成熟后可获得白萝卜和新种子。</div>
+          <div className="phase-note"><strong>种下你的第一份收成</strong>锄头开垦 → 放种子 → 浇水 → 约 24 秒后用镰刀收获。鼠标指向远处时，操作会吸附到身边最近的地块；镰刀朝鼠标方向收割高亮的一排三格，成熟后可获得白萝卜和新种子。</div>
+          <div className="phase-note"><strong>整装去森林</strong>物品栏最右边是头、身、背装备栏。拖入对应装备即可穿戴；背包清空后才能卸下。西侧森林里有徘徊的史莱姆，手枪可远射，长剑可挥斩；命中后显示血量，击败后会渐渐重新出现。</div>
           <div className="phase-note"><strong>小镇的绿屋顶商店</strong>沿路向北走，进入松果杂货店后按 E。白萝卜每个卖 18 G，贝壳 8 G，木材 6 G；120 G 的帆布背包在右侧增加 8 格。所有房屋都可以直接走进去。</div>
           <p className="session-note">丢下的物品会留在脚边，按 E 可以拾回；出海后靠近岸边或码头才能下船。打开面板会暂停游戏。当前为试玩版本，刷新会重置本次进度。</p>
         </div>:<div>

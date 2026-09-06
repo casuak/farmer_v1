@@ -1,8 +1,8 @@
 import type { TileKind } from "./farming";
 
-export type SoundId="grass"|"soil"|"stone"|"wood"|"sand"|"hoe"|"seeds"|"water"|"scythe"|"pickup"|"coin"|"select"|"drop"|"paddle";
-export const SOUND_IDS:SoundId[]=["grass","soil","stone","wood","sand","hoe","seeds","water","scythe","pickup","coin","select","drop","paddle"];
-const durations:Record<SoundId,number>={grass:.23,soil:.20,stone:.17,wood:.21,sand:.27,hoe:.30,seeds:.24,water:.65,scythe:.32,pickup:.22,coin:.32,select:.065,drop:.19,paddle:.46};
+export type SoundId="grass"|"soil"|"stone"|"wood"|"sand"|"hoe"|"seeds"|"water"|"scythe"|"pickup"|"coin"|"select"|"drop"|"paddle"|"pistol"|"sword"|"slime";
+export const SOUND_IDS:SoundId[]=["grass","soil","stone","wood","sand","hoe","seeds","water","scythe","pickup","coin","select","drop","paddle","pistol","sword","slime"];
+const durations:Record<SoundId,number>={grass:.30,soil:.26,stone:.23,wood:.26,sand:.32,hoe:.34,seeds:.28,water:.70,scythe:.38,pickup:.28,coin:.35,select:.11,drop:.25,paddle:.52,pistol:.24,sword:.33,slime:.30};
 
 export function footstepSurface(kind:TileKind):SoundId{
   if(kind==="bridge"||kind==="dock"||kind==="floor")return "wood";
@@ -14,7 +14,7 @@ export function footstepSurface(kind:TileKind):SoundId{
 /** Original procedural Foley, generated locally; no third-party recordings. */
 export function synthesizeSound(id:SoundId,variant:number,sampleRate:number):Float32Array{
   const duration=durations[id],samples=new Float32Array(Math.ceil(duration*sampleRate));
-  let seed=(id.length*9013+variant*7919+17)>>>0,low=0,body=0,grit=0;
+  let seed=(id.length*9013+variant*7919+17)>>>0,low=0,body=0,filtered=0,filtered2=0;
   const random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296*2-1;};
   const tone=(t:number,hz:number,decay:number)=>Math.sin(t*hz*Math.PI*2)*Math.exp(-t*decay);
   const soft=id==="grass"||id==="soil"||id==="sand",step=soft||id==="stone"||id==="wood";
@@ -22,35 +22,39 @@ export function synthesizeSound(id:SoundId,variant:number,sampleRate:number):Flo
     const t=i/sampleRate,u=t/duration,white=random();
     low+= (white-low)*(1-Math.exp(-2*Math.PI*1100/sampleRate));
     body+= (white-body)*(1-Math.exp(-2*Math.PI*210/sampleRate));
-    if(random()>.986)grit=white;else grit*=Math.exp(-110/sampleRate);
-    const attack=Math.min(1,t/.005),tail=Math.min(1,(duration-t)/.018);
+    const attack=.5-.5*Math.cos(Math.PI*Math.min(1,t/(step?.032:.018))),tail=Math.min(1,(duration-t)/.05);
     let value=0;
     if(step){
-      const heel=Math.exp(-t*(soft?25:42)),scrape=Math.exp(-Math.pow((t-.065)/.052,2));
-      const sole=tone(t,(id==="wood"?145:id==="stone"?115:78)+variant*5,38);
-      value=(body*2.6+sole*.22)*heel;
-      if(id==="wood")value+=tone(t,320+variant*18,44)*.09+low*.18*heel;
-      else if(id==="stone")value+=(white-low)*.15*heel+tone(t,540+variant*22,65)*.04;
-      else value+=(low*.30+grit*(id==="sand"?.18:.30))*scrape;
+      const heel=Math.exp(-Math.pow((t-.045)/.04,2)),scrape=Math.exp(-Math.pow((t-.115-variant*.008)/.075,2));
+      // Rounded, filtered friction with no impulse train or synthetic bass kick.
+      value=body*.65*heel+low*(soft?.28:.12)*scrape;
+      if(id==="wood")value+=tone(t,230+variant*12,32)*.028*heel;
+      if(id==="stone")value+=low*.15*heel;
     }else if(id==="hoe"||id==="drop"){
-      value=(body*3.2+tone(t,id==="hoe"?84:130,32)*.35)*Math.exp(-t*20)+grit*.24*Math.exp(-t*13);
+      value=(body*.85+low*.16)*Math.exp(-Math.pow((t-.06)/.06,2))+low*.10*Math.exp(-t*12);
     }else if(id==="water"||id==="paddle"){
       const flow=Math.pow(Math.sin(Math.PI*u),.65),bubbles=Math.sin(2*Math.PI*(620*t+340*t*t));
-      value=(low*.47+body*.80+white*.035)*flow;
+      value=(low*.26+body*.35)*flow;
       value+=bubbles*.035*Math.pow(Math.max(0,Math.sin(t*64)),8)*flow;
-      if(id==="paddle")value+=body*1.6*Math.exp(-t*24);
-    }else if(id==="scythe"){
-      value=(white-low)*.16*Math.pow(Math.sin(Math.PI*u),1.8)+grit*.17*Math.exp(-Math.pow((u-.64)/.18,2));
+      if(id==="paddle")value+=body*.3*Math.exp(-t*24);
+    }else if(id==="scythe"||id==="sword"){
+      value=low*.32*Math.pow(Math.sin(Math.PI*u),2.2);
+    }else if(id==="pistol"){
+      value=(body*.95+low*.35)*Math.exp(-t*24)+tone(t,370,45)*.04;
+    }else if(id==="slime"){
+      value=Math.sin(2*Math.PI*(190*t-180*t*t))*.10*Math.pow(Math.sin(Math.PI*u),2)+body*.15;
     }else if(id==="seeds"){
-      value=(white-low)*.15*(Math.exp(-t*90)+Math.exp(-Math.pow((t-.07)/.013,2))*.7+Math.exp(-Math.pow((t-.13)/.02,2))*.45);
+      value=low*.23*Math.pow(Math.sin(Math.PI*u),2);
     }else if(id==="select"){
-      value=tone(t,850,95)*.19+low*.12*Math.exp(-t*90);
+      value=tone(t,620,45)*.07;
     }else{
       const second=Math.max(0,t-.07),hz=id==="coin"?1175:660;
-      value=tone(t,hz,26)*.13+tone(t,hz*2.01,38)*.045;
-      if(t>.07)value+=tone(second,hz*1.5,28)*.12;
+      value=tone(t,hz,20)*.055;
+      if(t>.07)value+=tone(second,hz*1.5,24)*.035*Math.min(1,second/.02);
     }
-    samples[i]=Math.tanh(value)*attack*tail;
+    const cutoff=step?900:2100,alpha=1-Math.exp(-2*Math.PI*cutoff/sampleRate);
+    filtered+=(value-filtered)*alpha;filtered2+=(filtered-filtered2)*alpha;
+    samples[i]=filtered2*attack*tail*.7;
   }
   return samples;
 }
@@ -113,7 +117,7 @@ export class GameAudio {
     }catch{/* Sound failure never interrupts movement or rendering. */}
   }
 
-  step(kind:TileKind,running:boolean){this.play(footstepSurface(kind),running?1.12:.88);}
+  step(kind:TileKind,running:boolean){this.play(footstepSurface(kind),running?.80:.65);}
   private release(voice:Voice){voice.source.onended=null;try{voice.source.stop();}catch{}voice.source.disconnect();voice.gain.disconnect();this.voices.delete(voice);}
   stop(){for(const voice of this.voices)this.release(voice);}
   dispose(){

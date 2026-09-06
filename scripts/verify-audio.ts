@@ -2,11 +2,17 @@ import assert from "node:assert/strict";
 import { GameAudio,SOUND_IDS,synthesizeSound,footstepSurface } from "../components/game/audio";
 
 export function verifyAudio(){
-  for(const sampleRate of [44100,48000])for(const id of SOUND_IDS){
-    const samples=synthesizeSound(id,0,sampleRate);let peak=0,power=0;
+  for(const sampleRate of [44100,48000])for(const id of SOUND_IDS)for(const variant of [0,1,2]){
+    const samples=synthesizeSound(id,variant,sampleRate);let peak=0,power=0;
     for(const value of samples){assert(Number.isFinite(value));peak=Math.max(peak,Math.abs(value));power+=value*value;}
     assert(samples.length>sampleRate*.04&&samples.length<sampleRate,"Effects are short and bounded");
-    assert(peak<.95&&Math.sqrt(power/samples.length)>.008,`${id}: non-silent, unclipped signal`);
+    const rms=Math.sqrt(power/samples.length);
+    assert(peak<.24&&rms>.003&&rms<.045,`${id}: quiet but audible, without strong peaks`);
+    if(["grass","soil","stone","wood","sand"].includes(id)){
+      let differences=0;for(let i=1;i<samples.length;i++)differences+=(samples[i]-samples[i-1])**2;
+      assert(Math.sqrt(differences/power)<.085,"Footsteps exclude the sharp transients that sound like firecrackers");
+      assert(peak<.14&&rms<.03,"Running uses a restrained footstep source instead of a bass impact");
+    }
     assert(samples[0]===0);assert(Math.abs(samples.at(-1)!)<.002,"Fade avoids a click at the end");
   }
   assert.equal(footstepSurface("bridge"),"wood");assert.equal(footstepSurface("floor"),"wood");

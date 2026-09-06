@@ -19,6 +19,7 @@ import { verifyShadowAndLamps } from "./verify-shadow-lamps";
 import { verifyWildlife } from "./verify-wildlife";
 import { verifyAudio } from "./verify-audio";
 import { verifyRiverFish } from "./verify-river-fish";
+import { verifyActions } from "./verify-actions";
 
 await verifyRendering();
 verifyWildlife();
@@ -58,6 +59,7 @@ const bridgeRunner={x:5.5,z:0};moveWithCollisions(bridgeRunner,7,0,w.canWalk);as
 verifyExpansion(scene,w,lighting);
 verifyDaylight(scene,camera,w,lighting);
 verifyShadowAndLamps(scene,w,lighting);
+verifyActions(scene,w,shadow);
 
 const farm=new FarmModel(w.tiles,w.clearReach),target={x:-4,z:-4},player={...SPAWN};
 assert.equal(farm.get(-8,7)!.kind,"building");assert.equal(farm.get(9,5)!.kind,"water");assert.equal(farm.get(-9,-4)!.kind,"dirt");

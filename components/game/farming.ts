@@ -24,6 +24,12 @@ export const inReach=(player:Point,target:Point)=>{
   const p=worldToTile(player);
   return Math.abs(target.x-p.x)<=1&&Math.abs(target.z-p.z)<=1;
 };
+/** Three neighbours in a row, perpendicular to the mouse's dominant tile axis. */
+export function sweepTiles(player:Point,aim:Point):Point[]{
+  const p=worldToTile(player),dx=aim.x-player.x,dz=aim.z-player.z;
+  const side=Math.abs(dx)>Math.abs(dz),sign=(side?dx:dz)>=0?1:-1;
+  return [-1,0,1].map(offset=>({x:p.x+(side?sign:offset),z:p.z+(side?offset:sign)}));
+}
 
 export class FarmModel {
   readonly tiles=new Map<string,FarmTile>();
@@ -33,6 +39,25 @@ export class FarmModel {
     for(const t of tiles)this.tiles.set(tileKey(t.x,t.z),{...t,tilled:false,watered:false,crop:null,revision:0});
   }
   get(x:number,z:number){return this.tiles.get(tileKey(x,z))??null;}
+  resolveTarget(aim:Point,player:Point):Point|null{
+    const p=worldToTile(player),direct=worldToTile(aim);
+    if(inReach(player,direct)&&this.get(direct.x,direct.z))return direct;
+    const nearby:Point[]=[];
+    for(let x=p.x-1;x<=p.x+1;x++)for(let z=p.z-1;z<=p.z+1;z++){
+      if(this.get(x,z)&&this.clearReach(player,{x:x+.5,z:z+.5}))nearby.push({x,z});
+    }
+    nearby.sort((a,b)=>(a.x+.5-aim.x)**2+(a.z+.5-aim.z)**2-((b.x+.5-aim.x)**2+(b.z+.5-aim.z)**2));
+    return nearby[0]??this.get(p.x,p.z);
+  }
+  harvestArea(player:Point,aim:Point):{ok:boolean;message:string;tiles:FarmTile[]}{
+    const candidates=sweepTiles(player,aim).map(p=>this.get(p.x,p.z)).filter((t):t is FarmTile=>!!t&&!!t.crop&&t.crop.stage===4&&(t.kind==="grass"||t.kind==="dirt")&&this.clearReach(player,tileCenter(t)));
+    if(this.bag.count("scythe")===0)return {ok:false,message:"先选择镰刀",tiles:[]};
+    if(!candidates.length)return {ok:false,message:"挥扫范围内没有成熟作物",tiles:[]};
+    const count=candidates.length;
+    if(!this.bag.add([{id:"turnip",count},{id:"seeds",count:count*2}]))return {ok:false,message:"物品栏已满 · 先腾出位置再收获",tiles:[]};
+    for(const t of candidates){t.crop=null;t.watered=false;t.revision++;this.growing.delete(tileKey(t.x,t.z));}
+    return {ok:true,message:`范围收获 · 白萝卜 +${count} · 种子 +${count*2}`,tiles:candidates};
+  }
   private rule(tool:ToolId,t:FarmTile,player:Point,override?:TileKind):string|null {
     if(this.bag.count(tool)===0)return "没有这件农具或种子 · 可以到杂货店补充";
     if(!inReach(player,t))return "距离太远 · 请走到地块旁一格内";
