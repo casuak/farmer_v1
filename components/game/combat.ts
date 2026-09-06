@@ -13,6 +13,8 @@ export type Weapon="pistol"|"sword";
 export type Slime={x:number;z:number;home:Point;hp:number;yaw:number;phase:number;wait:number;travel:number;flash:number;respawn:number;knockX:number;knockZ:number};
 export type Shot={active:boolean;x:number;z:number;y:number;dx:number;dz:number;remaining:number;travelled:number;generation:number};
 export type HitEvent={x:number;z:number;damage:number;killed:boolean};
+/** Anything the weapons can hurt besides slimes; villagers implement this on their model. */
+export type Hittable={name:string;cry:()=>string;root:{position:Point};hurt:(damage:number,dx:number,dz:number)=>void};
 export const SLIME_HEALTH=3,HIT_FLASH_SECONDS=.22;
 export const BULLET_SPEED=36;
 const KNOCKBACK_DRAG=12;
@@ -22,8 +24,10 @@ export class CombatModel{
   private random=seededRandom(53871);
   private cooldown=0;
   private pendingHits:HitEvent[]=[];
+  private victims:Hittable[]=[];
   takeHits(){return this.pendingHits.splice(0);}
-  constructor(private canWalk:(x:number,z:number,r?:number)=>boolean,private clearLine:(a:Point,b:Point)=>boolean){
+  takeVictims(){return this.victims.splice(0);}
+  constructor(private canWalk:(x:number,z:number,r?:number)=>boolean,private clearLine:(a:Point,b:Point)=>boolean,private villagers:Hittable[]=[]){
     for(const [x,z] of SLIME_SPAWNS){
       let spawn:Point|null=null;
       for(let i=0;i<100&&!spawn;i++){
@@ -40,6 +44,12 @@ export class CombatModel{
     if(!slime.hp)slime.respawn=18+this.random()*12;
     if(this.pendingHits.length>=32)this.pendingHits.shift();
     this.pendingHits.push({x:slime.x,z:slime.z,damage:dealt,killed:slime.hp===0});
+  }
+  private hurtVillager(v:Hittable,damage:number,dx:number,dz:number){
+    v.hurt(damage,dx,dz);
+    if(this.victims.length<8)this.victims.push(v);
+    if(this.pendingHits.length>=32)this.pendingHits.shift();
+    this.pendingHits.push({x:v.root.position.x,z:v.root.position.z,damage,killed:false});
   }
   private recoil(slime:Slime,dt:number){
     const decay=Math.exp(-KNOCKBACK_DRAG*dt),dx=slime.knockX*(1-decay)/KNOCKBACK_DRAG,dz=slime.knockZ*(1-decay)/KNOCKBACK_DRAG;
@@ -60,6 +70,9 @@ export class CombatModel{
     if(weapon==="sword"){
       for(const s of this.slimes){const x=s.x-player.x,z=s.z-player.z,d=Math.hypot(x,z);
         if(s.hp>0&&d<=2.05&&(d<.2||(x*dx+z*dz)/d>.35)&&this.clearLine(player,s)){this.hit(s,2,d>.001?x:dx,d>.001?z:dz);hits++;}
+      }
+      for(const v of this.villagers){const x=v.root.position.x-player.x,z=v.root.position.z-player.z,d=Math.hypot(x,z);
+        if(d<=2.05&&(d<.2||(x*dx+z*dz)/d>.35)&&this.clearLine(player,v.root.position))this.hurtVillager(v,2,d>.001?x:dx,d>.001?z:dz);
       }
     }else{
       const start=muzzle??{...player,y:(player.y??0)+.88},shot=this.shots.find(s=>!s.active);
@@ -93,6 +106,8 @@ export class CombatModel{
         shot.x=next.x;shot.z=next.z;shot.remaining-=step;shot.travelled+=step;left-=step;
         const enemy=this.slimes.find(s=>s.hp>0&&Math.hypot(s.x-shot.x,s.z-shot.z)<.48);
         if(enemy){this.hit(enemy,1,shot.dx,shot.dz);hits++;shot.active=false;}
+        const victim=this.villagers.find(v=>Math.hypot(v.root.position.x-shot.x,v.root.position.z-shot.z)<.42);
+        if(victim){this.hurtVillager(victim,1,shot.dx,shot.dz);shot.active=false;}
       }
       if(shot.remaining<=.001)shot.active=false;
     }
@@ -100,8 +115,8 @@ export class CombatModel{
   }
 }
 
-export function createCombat(scene:Scene,shadow:ShadowGenerator,canWalk:(x:number,z:number,r?:number)=>boolean,clearLine:(a:Point,b:Point)=>boolean){
-  const model=new CombatModel(canWalk,clearLine),skin=voxelMaterial(scene,"forest-slime-skin");
+export function createCombat(scene:Scene,shadow:ShadowGenerator,canWalk:(x:number,z:number,r?:number)=>boolean,clearLine:(a:Point,b:Point)=>boolean,villagers:Hittable[]=[],onVillagerHurt?:(v:Hittable)=>void){
+  const model=new CombatModel(canWalk,clearLine,villagers),skin=voxelMaterial(scene,"forest-slime-skin");
   skin.specularColor=Color3.FromHexString("#8eaf68");skin.specularPower=28;
   const bright=new StandardMaterial("slime-hit-red",scene);bright.disableLighting=true;bright.emissiveColor=Color3.FromHexString("#ff6557");
   const numbers=createDamageNumbers(scene);
@@ -121,6 +136,7 @@ export function createCombat(scene:Scene,shadow:ShadowGenerator,canWalk:(x:numbe
   const trails=createBulletTrails(scene,model.shots),bullets=trails.views.map(v=>v.head);
   function update(dt:number,motion:boolean){
     const hits=model.update(dt);
+    for(const victim of model.takeVictims())onVillagerHurt?.(victim);
     numbers.update(dt,motion);for(const hit of model.takeHits())numbers.show(hit);
     views.forEach(v=>{
       const {s,root,visual,mesh,eyes,healthRoot,bar}=v,dy=motion?Math.max(0,Math.sin(s.phase))*.12:0;

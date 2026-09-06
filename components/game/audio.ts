@@ -1,8 +1,8 @@
 import type { TileKind } from "./farming";
 
-export type SoundId="grass"|"soil"|"stone"|"wood"|"sand"|"hoe"|"seeds"|"water"|"scythe"|"pickup"|"coin"|"select"|"drop"|"paddle"|"pistol"|"sword"|"slime";
-export const SOUND_IDS:SoundId[]=["grass","soil","stone","wood","sand","hoe","seeds","water","scythe","pickup","coin","select","drop","paddle","pistol","sword","slime"];
-const durations:Record<SoundId,number>={grass:.30,soil:.26,stone:.23,wood:.26,sand:.32,hoe:.34,seeds:.28,water:.70,scythe:.38,pickup:.28,coin:.35,select:.11,drop:.25,paddle:.52,pistol:.24,sword:.33,slime:.30};
+export type SoundId="grass"|"soil"|"stone"|"wood"|"sand"|"hoe"|"seeds"|"water"|"scythe"|"pickup"|"coin"|"select"|"drop"|"paddle"|"pistol"|"sword"|"slime"|"startled"|"cast"|"splash"|"bite"|"reel"|"fishCatch"|"fishEscape";
+export const SOUND_IDS:SoundId[]=["grass","soil","stone","wood","sand","hoe","seeds","water","scythe","pickup","coin","select","drop","paddle","pistol","sword","slime","startled","cast","splash","bite","reel","fishCatch","fishEscape"];
+const durations:Record<SoundId,number>={grass:.30,soil:.26,stone:.23,wood:.26,sand:.32,hoe:.34,seeds:.28,water:.70,scythe:.38,pickup:.28,coin:.35,select:.11,drop:.25,paddle:.52,pistol:.24,sword:.33,slime:.30,startled:.34,cast:.4,splash:.48,bite:.5,reel:.25,fishCatch:.65,fishEscape:.4};
 
 export function footstepSurface(kind:TileKind):SoundId{
   if(kind==="bridge"||kind==="dock"||kind==="floor")return "wood";
@@ -43,6 +43,23 @@ export function synthesizeSound(id:SoundId,variant:number,sampleRate:number):Flo
       value=(body*.95+low*.35)*Math.exp(-t*24)+tone(t,370,45)*.04;
     }else if(id==="slime"){
       value=Math.sin(2*Math.PI*(190*t-180*t*t))*.10*Math.pow(Math.sin(Math.PI*u),2)+body*.15;
+    }else if(id==="startled"){
+      // A quick, wobbly squeak: a startled villager's cry, no sample.
+      const wobble=Math.sin(2*Math.PI*(23*t));
+      value=tone(t,620+wobble*120+480*t,7)*.30*Math.pow(Math.sin(Math.PI*u),1.2);
+      value+=tone(t,1240+wobble*200,14)*.09*Math.pow(Math.sin(Math.PI*u),2);
+    }else if(id==="cast"){
+      value=low*.35*Math.pow(Math.sin(Math.PI*u),2)+tone(t,420,16)*.035;
+    }else if(id==="splash"){
+      value=(low*.4+body*.55)*Math.pow(Math.sin(Math.PI*u),1.3)+tone(t,720-420*u,10)*.05;
+    }else if(id==="bite"){
+      value=tone(t,880,9)*.18+(t>.12?tone(t-.12,1320,12)*.13:0);
+    }else if(id==="reel"){
+      value=low*.16*Math.pow(Math.max(0,Math.sin(t*125)),4)+tone(t,540,15)*.045;
+    }else if(id==="fishCatch"){
+      for(let note=0;note<3;note++){const age=t-note*.12;if(age>=0)value+=tone(age,[660,880,1320][note],9)*.12*Math.min(1,age/.015);}
+    }else if(id==="fishEscape"){
+      value=Math.sin(2*Math.PI*(600*t-380*t*t))*.10*Math.pow(Math.sin(Math.PI*u),2);
     }else if(id==="seeds"){
       value=low*.23*Math.pow(Math.sin(Math.PI*u),2);
     }else if(id==="select"){

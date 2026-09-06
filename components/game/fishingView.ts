@@ -1,0 +1,92 @@
+import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
+import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+import { Color3 } from "@babylonjs/core/Maths/math.color";
+import { Matrix,Vector3 } from "@babylonjs/core/Maths/math.vector";
+import type { Scene } from "@babylonjs/core/scene";
+import type { Camera } from "@babylonjs/core/Cameras/camera";
+import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+import type { Point } from "./farming";
+import type { FishId } from "./inventory";
+import { FISHING,type FishingSnapshot,type FishingSpot } from "./fishing";
+import { createFishPixels,FISH_SPRITES } from "./fishSprites";
+import { seaHeight } from "./geography";
+import { Voxels,voxelMaterial } from "./voxel";
+
+const clamp=(n:number)=>Math.max(0,Math.min(1,n));
+const smooth=(n:number)=>{const u=clamp(n);return u*u*(3-2*u);};
+export function catchJumpPosition(spot:Point,player:Point,progress:number,reducedMotion=false){
+  const u=clamp(progress),height=reducedMotion?1.25*u:2.75*Math.sin(u*Math.PI*.72);
+  return new Vector3(spot.x+(player.x-spot.x)*u*.12,-.34+height,spot.z+(player.z-spot.z)*u*.12);
+}
+export function catchFlyPosition(from:{x:number;y:number},to:{x:number;y:number},progress:number,reducedMotion=false){
+  const u=clamp(progress),ease=u*u*(2-u);
+  return {x:from.x+(to.x-from.x)*ease,y:from.y+(to.y-from.y)*ease-(reducedMotion?0:Math.sin(u*Math.PI)*62),scale:1-ease*.82,opacity:1-smooth((u-.88)/.12)};
+}
+
+/** World-space jump hands its exact projected sprite to a screen-space inventory flight. */
+export function createFishingView(scene:Scene,camera:Camera,canvas:HTMLCanvasElement,rodTip:TransformNode){
+  const floatMaterial=voxelMaterial(scene,"fishing-float");
+  const bobber=new Voxels().box(0,0,0,.15,.15,.15,"#fff2cc").box(0,.09,0,.14,.10,.14,"#de7256").box(0,.19,0,.025,.15,.025,"#fce4a0").build("fishing-bobber",scene,floatMaterial);
+  bobber.isPickable=false;bobber.setEnabled(false);
+  const points=Array.from({length:19},()=>new Vector3());
+  const line=MeshBuilder.CreateLines("fishing-line",{points,updatable:true},scene);line.color=Color3.FromHexString("#fff2c9");line.alpha=.82;line.isPickable=false;line.setEnabled(false);
+  const rippleMaterial=new StandardMaterial("fishing-ripple",scene);rippleMaterial.disableLighting=true;rippleMaterial.emissiveColor=Color3.FromHexString("#e6f9db");rippleMaterial.alpha=.65;
+  const rings=Array.from({length:3},(_,i)=>{const m=MeshBuilder.CreateTorus("fishing-ripple-"+i,{diameter:1,thickness:.027,tessellation:32},scene);m.material=rippleMaterial;m.isPickable=false;m.setEnabled(false);return m;});
+  const target=MeshBuilder.CreateTorus("fishing-cast-target",{diameter:.65,thickness:.045,tessellation:32},scene);target.material=rippleMaterial;target.isPickable=false;target.setEnabled(false);
+  const splashMaterial=new StandardMaterial("fishing-splash",scene);splashMaterial.disableLighting=true;splashMaterial.emissiveColor=Color3.FromHexString("#d3f4ee");
+  const droplets=Array.from({length:12},(_,i)=>{const m=MeshBuilder.CreateBox("fishing-droplet-"+i,{size:.065},scene);m.material=splashMaterial;m.isPickable=false;m.setEnabled(false);return m;});
+  const materials=new Map<FishId,StandardMaterial>();
+  for(const id of Object.keys(FISH_SPRITES) as FishId[]){
+    const pixels=createFishPixels(id),texture=RawTexture.CreateRGBATexture(pixels.data,pixels.width,pixels.height,scene,false,true,Texture.NEAREST_SAMPLINGMODE);
+    texture.name="caught-fish-texture-"+id;texture.hasAlpha=true;texture.wrapU=texture.wrapV=Texture.CLAMP_ADDRESSMODE;
+    const material=new StandardMaterial("caught-fish-material-"+id,scene);material.diffuseTexture=texture;material.useAlphaFromDiffuseTexture=true;
+    material.disableLighting=true;material.emissiveColor=Color3.White();material.specularColor=Color3.Black();material.backFaceCulling=false;material.transparencyMode=StandardMaterial.MATERIAL_ALPHATEST;
+    materials.set(id,material);
+  }
+  const fish=MeshBuilder.CreatePlane("caught-fish-sprite",{width:1.38,height:.92},scene);fish.billboardMode=Mesh.BILLBOARDMODE_ALL;fish.isPickable=false;fish.setEnabled(false);
+  const flight=document.createElement("img");flight.className="fishing-catch-flight";flight.alt="";flight.setAttribute("aria-hidden","true");flight.draggable=false;flight.hidden=true;canvas.parentElement?.appendChild(flight);
+  let lastPhase: FishingSnapshot["phase"]="idle",splashTime=9,splashSpot:Point={x:0,z:0},flightSlot:number|null=null;
+  let shining:HTMLElement|null=null,shineTime=0;
+  function project(p:Vector3){const b=canvas.getBoundingClientRect();return Vector3.Project(p,Matrix.Identity(),scene.getTransformMatrix(),camera.viewport.toGlobal(b.width,b.height));}
+  function clear(){bobber.setEnabled(false);line.setEnabled(false);target.setEnabled(false);fish.setEnabled(false);rings.forEach(m=>m.setEnabled(false));droplets.forEach(m=>m.setEnabled(false));flight.hidden=true;flightSlot=null;lastPhase="idle";splashTime=9;}
+  function land(slot:number|null){if(shining)delete shining.dataset.fishReceived;shining=slot===null?null:canvas.parentElement?.querySelector<HTMLElement>(`[data-inventory-slot="${slot}"]`)??null;if(shining){shining.dataset.fishReceived="true";shineTime=.65;}}
+  function update(state:FishingSnapshot,player:Point,time:number,dt:number,motion:boolean,preview:FishingSpot|null,slot:number|null){
+    if(shining){shineTime-=dt;if(shineTime<=0){delete shining.dataset.fishReceived;shining=null;}}
+    const {phase,spot}=state,active=phase!=="idle"&&phase!=="escaped";
+    target.setEnabled(!!preview&&phase==="idle");if(preview)target.position.set(preview.x,preview.kind==="sea"?seaHeight(preview.x,preview.z,motion?time:0)+.06:-.16,preview.z);
+    if(phase!==lastPhase){
+      if((phase==="waiting"||phase==="bite"||phase==="catching")&&spot){splashTime=0;splashSpot={...spot};}
+      if(phase==="catching"){flightSlot=slot;if(state.fish)flight.src=FISH_SPRITES[state.fish.id];}
+      lastPhase=phase;
+    }
+    splashTime+=dt;
+    droplets.forEach((m,i)=>{const alive=motion&&splashTime<.55;m.setEnabled(alive);if(!alive)return;const a=i*2.399,r=splashTime*(.8+i%3*.3);m.position.set(splashSpot.x+Math.cos(a)*r,-.16+splashTime*(2.2+i%4*.25)-5*splashTime*splashTime,splashSpot.z+Math.sin(a)*r);m.visibility=1-splashTime/.55;});
+    const floating=active&&phase!=="catching";bobber.setEnabled(floating);line.setEnabled(floating);fish.setEnabled(phase==="catching"&&state.phaseTime<FISHING.jumpSeconds&&!!state.fish);flight.hidden=true;
+    rings.forEach((m,i)=>{m.setEnabled(!!spot&&active&&phase!=="casting");if(!spot)return;const pulse=((time*.75+i/3)%1),scale=.38+pulse*(phase==="bite"?1.15:.8);m.position.set(spot.x,spot.kind==="sea"?seaHeight(spot.x,spot.z,motion?time:0)+.035:-.155,spot.z);m.scaling.set(scale,1,scale);m.visibility=(1-pulse)*.7;});
+    if(!spot)return;
+    if(floating){
+      const waterY=spot.kind==="sea"?seaHeight(spot.x,spot.z,motion?time:0):-.17;
+      rodTip.computeWorldMatrix(true);const tip=rodTip.getAbsolutePosition();
+      if(phase==="casting"){const u=clamp(state.phaseTime/FISHING.castSeconds);Vector3.LerpToRef(tip,new Vector3(spot.x,waterY,spot.z),u,bobber.position);bobber.position.y+=Math.sin(u*Math.PI)*(motion?1.6:.3);}
+      else bobber.position.set(spot.x,waterY+(phase==="bite"?-.06+Math.sin(state.phaseTime*28)*.09:motion?Math.sin(time*3.5)*.035:0),spot.z);
+      for(let i=0;i<points.length;i++){const u=i/(points.length-1);Vector3.LerpToRef(tip,bobber.position,u,points[i]);points[i].y-=Math.sin(Math.PI*u)*(phase==="reeling"?.08:.23);}
+      MeshBuilder.CreateLines("fishing-line",{points,instance:line},scene);
+    }
+    if(phase==="catching"&&state.fish){
+      fish.material=materials.get(state.fish.id)!;
+      fish.position.copyFrom(catchJumpPosition(spot,player,state.phaseTime/FISHING.jumpSeconds,!motion));
+      if(state.phaseTime>=FISHING.jumpSeconds){
+        const jumpEnd=catchJumpPosition(spot,player,1,!motion),from=project(jumpEnd),top=project(jumpEnd.add(camera.getDirection(Vector3.Up()).scale(.46)));
+        const b=canvas.getBoundingClientRect(),slotElement=flightSlot===null?null:canvas.parentElement?.querySelector<HTMLElement>(`[data-inventory-slot="${flightSlot}"]`),rect=slotElement?.getBoundingClientRect();
+        const to=rect?{x:rect.left+rect.width/2-b.left,y:rect.top+rect.height/2-b.top}:{x:b.width/2,y:b.height-65};
+        const u=clamp((state.phaseTime-FISHING.jumpSeconds)/FISHING.flySeconds),p=catchFlyPosition(from,to,u,!motion),height=Math.max(20,Math.abs(top.y-from.y)*2);
+        flight.hidden=false;flight.style.width=`${height*1.5}px`;flight.style.height=`${height}px`;flight.style.left=`${p.x}px`;flight.style.top=`${p.y}px`;
+        flight.style.opacity=String(p.opacity);flight.style.transform=`translate(-50%,-50%) scale(${p.scale}) rotate(${motion?-Math.sin(u*Math.PI)*22:0}deg)`;
+      }
+    }
+  }
+  return {update,clear,land,fish,bobber,line,dispose(){clear();if(shining)delete shining.dataset.fishReceived;flight.remove();}};
+}

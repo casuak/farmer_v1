@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "../vendor/shadcn-tailwind-4.13.0.css";
+@import "../components/game/fishing.css";
 :root {
   --background:#fffdf3;--foreground:#2c4436;--card:#fffdf3;--card-foreground:#2c4436;
   --popover:#fffdf3;--popover-foreground:#2c4436;--primary:#42634b;--primary-foreground:#fffdf3;

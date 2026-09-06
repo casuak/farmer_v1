@@ -178,7 +178,7 @@ export function buildWorld(scene:Scene,shadow:ShadowGenerator) {
     return !obstacles.some(o=>Math.abs(x-o.x)<o.w/2+r&&Math.abs(z-o.z)<o.d/2+r);
   }
   function update(time:number,motion:boolean,player?:{x:number;y:number;z:number},shadows=true,dt=0,solar:SolarState=INITIAL_SUN,focus:{x:number;z:number}=player??FARM_SPAWN) {
-    ambience.update(time,motion,solar);ocean.update(time,motion,solar);residents.update(dt,time,motion);
+    ambience.update(time,motion,solar);ocean.update(time,motion,solar);residents.update(dt,time,motion,player);
     streetLights.update(solar.hour,dt,focus);
     contacts.update(player,shadows);
     for(const s of smoke) {

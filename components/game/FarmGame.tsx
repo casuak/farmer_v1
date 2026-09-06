@@ -16,6 +16,8 @@ import WorldMap from "./WorldMap";
 import TimeControls,{QuickTime} from "./TimeControls";
 import { DayNightClock,formatClock,timeOfDay } from "./dayNight";
 import { FARM_SPAWN } from "./geography";
+import FishingOverlay from "./FishingOverlay";
+import { FishingModel } from "./fishing";
 
 type Panel="help"|"settings"|"shop"|"map"|null;
 const MIN_ZOOM=75,MAX_ZOOM=160;
@@ -23,7 +25,7 @@ export default function FarmGame(){
   const canvas=useRef<HTMLCanvasElement>(null),api=useRef<GameApi|null>(null);
   const [ready,setReady]=useState(false),[error,setError]=useState(""),[panel,setPanel]=useState<Panel>(null),[full,setFull]=useState(false);
   const [settings,setSettings]=useState<GameSettings>({zoom:140,shadows:true,motion:true,occlusion:true,grid:true,bloom:true,timeScale:1,sound:true,volume:.55});
-  const [status,setStatus]=useState<GameStatus>(()=>({...FARM_SPAWN,location:"松溪农场",moving:false,running:true,aboard:false,fps:0,bag:new InventoryModel().snapshot(),interaction:null,clock:new DayNightClock().snapshot(),bloomAvailable:true}));
+  const [status,setStatus]=useState<GameStatus>(()=>({...FARM_SPAWN,location:"松溪农场",moving:false,running:true,aboard:false,fps:0,bag:new InventoryModel().snapshot(),interaction:null,clock:new DayNightClock().snapshot(),bloomAvailable:true,fishing:new FishingModel().snapshot()}));
   const [tileInfo,setTileInfo]=useState<TileInfo|null>(null);
   const latest=useRef(settings);latest.current=settings;
   const resumeTimeScale=useRef(1);
@@ -66,8 +68,9 @@ export default function FarmGame(){
   const titles={help:"在松溪，慢慢生活",settings:"让画面更合心意",shop:"松果杂货店",map:"松溪四区"};
   const descriptions={help:"种一片菜圃，走过森林，再乘小船去看海。",settings:"保持清晰的固定视角，调整适合你的画面。",shop:"欢迎光临。收成可以换成金币，也可以添置新的背包。",map:"从农场出发，穿过林道与木桥，走进小镇和海滩。"};
   const period=timeOfDay(status.clock.minutes/60),ClockIcon=period==="夜晚"?Moon:period==="黄昏"?Sunset:period==="清晨"?Sunrise:Sun;
-  return <main className={`farm phase-three ${period==="夜晚"?"is-night":""}`} aria-label="松溪农场，3D 体素游戏">
-    <canvas className="game-canvas" ref={canvas} tabIndex={0} aria-label="游戏场景。WASD 移动，Shift 切换跑步，E 互动，滚轮缩放，1 至 9 选物品。左键操作高亮地块或朝鼠标攻击，5 为手枪，6 为长剑。"/>
+  const fishingActive=status.fishing.phase!=="idle",rodSelected=status.bag.slots[status.bag.selected]?.id==="fishingRod";
+  return <main className={`farm phase-three ${period==="夜晚"?"is-night":""} ${fishingActive?"is-fishing":""}`} aria-label="松溪农场，3D 体素游戏">
+    <canvas className="game-canvas" ref={canvas} tabIndex={0} aria-label="游戏场景。WASD 移动，Shift 切换跑步，E 互动，滚轮缩放，1 至 9 选物品。左键操作高亮地块或朝鼠标攻击，5 为手枪，6 为长剑，7 为钓鱼竿。点击水面抛竿，咬钩时点击提竿，按住左键或空格控制绿条，Esc 收竿。"/>
     <div className="vignette"/>
     <div className="hud brand glass"><div className="brand-icon"><Sprout/></div><div><h1>松溪农场</h1><p>PINEBROOK</p></div></div>
     <div className="hud chapter"><span/>第三章 · 山海之间</div>
@@ -80,9 +83,10 @@ export default function FarmGame(){
       <div className="keyboard-move"><kbd>Shift</kbd><span>切换步行 / 跑步</span></div>
       <div className="touch-move">方向按钮移动<br/>点击步跑按钮切换</div>
     </div>
-    <InventoryUI bag={status.bag} inspector={<TileInspector tile={tileInfo}/>} onSelect={i=>api.current?.selectSlot(i)} onMove={(a,b)=>api.current?.moveItem(a,b)} onDrop={i=>api.current?.dropItem(i)}/>
+    {ready&&!error&&(rodSelected||fishingActive)&&<FishingOverlay state={status.fishing} readState={()=>api.current?.fishingState()??status.fishing} onPress={()=>api.current?.fishingPress()} onRelease={()=>api.current?.fishingRelease()} onCancel={()=>api.current?.cancelFishing()} paused={panel!==null}/>}
+    <InventoryUI bag={status.bag} locked={fishingActive} inspector={<TileInspector tile={tileInfo}/>} onSelect={i=>api.current?.selectSlot(i)} onMove={(a,b)=>api.current?.moveItem(a,b)} onDrop={i=>api.current?.dropItem(i)}/>
     <div className="hud adventure-actions">
-      <button className="movement-toggle glass" aria-pressed={status.running} disabled={status.aboard} onClick={()=>api.current?.toggleRun()} title="按一下 Shift 切换，不需要一直按住">{status.aboard?<Ship size={16}/>:status.running?<Wind size={16}/>:<Footprints size={16}/>}<span>{status.aboard?"驾船中":status.running?"跑步 · 4×":"步行 · 2×"}</span><kbd>Shift</kbd></button>
+      <button className="movement-toggle glass" aria-pressed={status.running} disabled={status.aboard||fishingActive} onClick={()=>api.current?.toggleRun()} title="按一下 Shift 切换，不需要一直按住">{status.aboard?<Ship size={16}/>:status.running?<Wind size={16}/>:<Footprints size={16}/>}<span>{status.aboard?"驾船中":status.running?"跑步 · 4×":"步行 · 2×"}</span><kbd>Shift</kbd></button>
       <button className="interact-button glass" disabled={!status.interaction} onClick={()=>api.current?.interact()}><kbd>E</kbd><Hand size={15}/><span>{status.interaction?.label??"靠近物品、镇民或小船互动"}</span></button>
     </div>
     <Toaster theme="light" position="top-center" offset={112} mobileOffset={96} visibleToasts={1} toastOptions={{className:"farm-action-toast"}}/>
@@ -108,11 +112,14 @@ export default function FarmGame(){
             <div className="help-row">选择物品<span><kbd>1</kbd>–<kbd>9</kbd>或点击物品格</span></div>
             <div className="help-row">工具 / 朝鼠标攻击<span><MousePointer2 size={16}/>左键 / <kbd>Space</kbd></span></div>
             <div className="help-row">初始武器位置<span><kbd>5</kbd>手枪 · <kbd>6</kbd>长剑</span></div>
+            <div className="help-row">选择钓竿 / 收竿<span><kbd>7</kbd>钓鱼竿 · <kbd>Esc</kbd>取消</span></div>
+            <div className="help-row">钓鱼条上浮 / 下沉<span>按住左键或空格 / 松开</span></div>
             <div className="help-row">缩放视角<span>滚轮向上拉近 / 向下拉远</span></div>
             <div className="help-row">整理和丢下<span>拖到另一格 / 拖到场景</span></div>
           </div>
           <div className="phase-note"><strong>种下你的第一份收成</strong>锄头开垦 → 放种子 → 浇水 → 约 24 秒后用镰刀收获。鼠标指向远处时，操作会吸附到身边最近的地块；镰刀朝鼠标方向收割高亮的一排三格，成熟后可获得白萝卜和新种子。</div>
-          <div className="phase-note"><strong>整装去森林</strong>物品栏最右边是头、身、背装备栏。拖入对应装备即可穿戴；背包清空后才能卸下。农场北侧的森林空地里有史莱姆。手枪可以边移动边射击，枪口火光与亮色尾迹帮助辨认弹道；长剑可以近身挥斩。命中后会变红、击退并飘出伤害数字。</div>
+          <div className="phase-note"><strong>把春天钓进物品栏</strong>初始第 7 格已有竹钓竿。走到河岸、木桥边或海边码头，点击 6 格内的水面抛竿（空格朝面前抛）。浮漂出现咬钩提示时，立即点击或按空格提竿；按住让绿色条上浮，松开下沉，让鱼待在绿条里，钓获进度满格就成功。鱼会从落钩处跃出，再飞入物品格！河里有鲤鱼、河鲈，海里有沙丁鱼、红鲷，都可到杂货店出售。触屏可点水面抛竿，再长按钓鱼面板按钮控鱼；Esc 或 × 收竿，打开面板会暂停。</div>
+          <div className="phase-note"><strong>整装去森林</strong>物品栏最右边是头、身、背装备栏。拖入对应装备即可穿戴；背包清空后才能卸下。农场北侧的森林空地里有史莱姆。手枪可以边移动边射击，枪口火光与亮色尾迹帮助辨认弹道；长剑可以近身挥斩。命中后会变红、击退并飘出伤害数字。镇民也会被击中：他们受了伤就会吓一跳，双手向前一扑，转身逃跑，过一阵才慢慢回到日常路线。</div>
           <div className="phase-note"><strong>小镇的绿屋顶商店</strong>穿过河上的木桥，沿小镇主街找到广场旁的松果杂货店，进门后按 E。白萝卜每个卖 18 G，贝壳 8 G，木材 6 G；120 G 的帆布背包在右侧增加 8 格。所有房屋都可以直接走进去。</div>
           <p className="session-note">丢下的物品会留在脚边，按 E 可以拾回；出海后靠近岸边或码头才能下船。打开面板会暂停游戏。当前为试玩版本，刷新会重置本次进度。</p>
         </div>:<div>

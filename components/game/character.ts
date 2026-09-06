@@ -64,6 +64,7 @@ export function createFarmer(scene:Scene,shadow:ShadowGenerator) {
       limbs[3].rotation.z=-body.rotation.z*aimWeight;
       elbows[1].rotation.x+=(.20-elbows[1].rotation.x)*aimWeight;
     }
+    if(held==="fishingRod"&&!aboard){limbs[3].rotation.x=1.75;elbows[1].rotation.x=.40;}
     if(aboard){body.position.y=-.12;limbs[2].rotation.x=limbs[3].rotation.x=.40+(moving?Math.sin(time*5)*.30:0);}
     if(action>0&&!aboard){
       const progress=Math.max(0,1-action/(held==="pistol"?.22:.43)),swing=Math.sin(progress*Math.PI);
@@ -73,5 +74,12 @@ export function createFarmer(scene:Scene,shadow:ShadowGenerator) {
     }
     return moving&&!aboard&&Math.floor(phase/Math.PI)!==previousStep;
   }
-  return {root:avatar,body,hand:elbows[1],limbs,elbows,animate,equip(bag:InventorySnapshot){hat.setEnabled(bag.slots[12]?.id==="hat");shirt.setEnabled(bag.slots[13]?.id==="shirt");pack.setEnabled(bag.backpack);}};
+  function fishPose(stage:string,seconds:number,motion:boolean){
+    const cast=stage==="casting",reel=stage==="reeling",caught=stage==="catching",pulse=motion&&reel?Math.sin(seconds*12)*.07:0;
+    // Local -Y shaft points forward and slightly upward when both elbows lift.
+    limbs[3].rotation.x=cast?2.5-Math.min(1,seconds/.65)*.7:caught?2.45:1.80+pulse;
+    elbows[1].rotation.x=.40;limbs[3].rotation.y=0;limbs[3].rotation.z=-.08;
+    limbs[2].rotation.x=1.35+pulse;elbows[0].rotation.x=.75;body.rotation.x=reel?-.04:0;
+  }
+  return {root:avatar,body,hand:elbows[1],limbs,elbows,animate,fishPose,equip(bag:InventorySnapshot){hat.setEnabled(bag.slots[12]?.id==="hat");shirt.setEnabled(bag.slots[13]?.id==="shirt");pack.setEnabled(bag.backpack);}};
 }

@@ -23,6 +23,9 @@ import { verifyRiverFish } from "./verify-river-fish";
 import { verifyActions } from "./verify-actions";
 import { verifyCombatFeedback,verifyMovingShooting } from "./verify-combat-feedback";
 import { verifyDistrictsAndGunfire } from "./verify-districts-gunfire";
+import { verifyVillagers } from "./verify-villagers";
+import { verifyFishingView } from "./verify-fishing-view";
+import "./verify-fishing";
 
 await verifyRendering();
 verifyWildlife();
@@ -66,6 +69,8 @@ verifyActions(scene,w,shadow);
 verifyCombatFeedback(scene,shadow);
 verifyMovingShooting(scene,shadow);
 verifyDistrictsAndGunfire(scene,w,shadow);
+verifyVillagers(scene,shadow,w);
+verifyFishingView(scene,camera,shadow,w);
 
 const farm=new FarmModel(w.tiles,w.clearReach),target={x:-22,z:-24},player={...SPAWN};
 assert.equal(farm.get(-26,-13)!.kind,"building");assert.equal(farm.get(Math.floor(riverCenter(5)),5)!.kind,"water");assert.equal(farm.get(GARDEN.x+1,GARDEN.z+1)!.kind,"dirt");
@@ -158,5 +163,5 @@ await Promise.race([
   new Promise<never>((_,reject)=>scene.onReadyTimeoutObservable.addOnce(()=>reject(new Error("Scene materials failed to become ready")))),
 ]);
 scene.render();
-console.log(JSON.stringify({result:"passed",checks:"7680 tiles, connected biomes and room entries, furniture collisions, toggle walk 2x/run 4x, distinct run animation, sailing and landing, gold and stack capacity, drop/recover, store purchases/sales/backpack, farming regression, ocean/wildlife/NPC movement, full-screen blossoms, shadows, material readiness and NullEngine frames",petalCoverage,tiles:w.tiles.length,meshes:scene.meshes.length,vertices:scene.meshes.reduce((n,m)=>n+m.getTotalVertices(),0)}));
+console.log(JSON.stringify({result:"passed",checks:"7680 tiles, connected biomes and room entries, furniture collisions, toggle walk 2x/run 4x, distinct run animation, sailing and landing, gold and stack capacity, drop/recover, store purchases/sales/backpack, farming regression, ocean/wildlife/NPC movement and villager panic flight, full-screen blossoms, shadows, material readiness and NullEngine frames",petalCoverage,tiles:w.tiles.length,meshes:scene.meshes.length,vertices:scene.meshes.reduce((n,m)=>n+m.getTotalVertices(),0)}));
 scene.dispose();engine.dispose();

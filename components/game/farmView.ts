@@ -112,7 +112,7 @@ export function createHeldTools(scene:Scene,hand:TransformNode,shadow:ShadowGene
   const material=voxelMaterial(scene,"hand-tools"),root=new TransformNode("equipped-tool",scene);root.parent=hand;root.position.set(0,-.20,-.02);
   const muzzle=new TransformNode("pistol-muzzle",scene);muzzle.parent=root;muzzle.position.set(0,-.39,-.04);
   const tools=new Map<HandItem,Mesh>();
-  for(const tool of [...TOOLS,"pistol","sword"] as HandItem[]){
+  for(const tool of [...TOOLS,"pistol","sword","fishingRod"] as HandItem[]){
     const v=new Voxels();
     if(tool==="hoe"){
       v.box(0,-.14,-.04,.07,.72,.07,"#bd925c");v.box(0,-.43,-.13,.31,.075,.26,"#839a93");v.box(0,-.47,-.23,.33,.10,.065,"#bad0bc");
@@ -124,10 +124,20 @@ export function createHeldTools(scene:Scene,hand:TransformNode,shadow:ShadowGene
       v.box(0,-.12,-.04,.07,.67,.07,"#b89160");v.box(-.16,-.40,-.04,.37,.07,.10,"#a2b8a7");v.box(-.36,-.36,-.04,.10,.12,.10,"#c5d4bb");v.box(-.41,-.27,-.04,.07,.11,.085,"#dce5cd");
     }else if(tool==="pistol"){
       v.box(0,-.15,-.04,.14,.38,.14,"#607078");v.box(0,-.18,-.12,.12,.32,.04,"#99aaa9");v.box(0,.03,.02,.12,.18,.18,"#967754");v.box(0,-.35,-.04,.08,.025,.07,"#35454b");
+    }else if(tool==="fishingRod"){
+      // Slim bamboo rod along local -Y (~1.5 m), gently bowed toward +Z, with a reel near the grip.
+      v.box(0,-.08,0,.06,.28,.06,"#a97e47");
+      v.box(0,-.25,.055,.07,.10,.05,"#4a3b2a");v.box(0,-.25,.09,.092,.04,.028,"#cf9a4a");
+      v.box(0,-.45,.035,.046,.34,.046,"#b97a3f");v.box(-.008,-.77,.048,.040,.32,.040,"#c98a48");
+      v.box(-.016,-1.09,.06,.035,.32,.035,"#d79c57");v.box(-.024,-1.33,.072,.030,.24,.030,"#e2ad65");
+      v.box(-.03,-1.44,.082,.022,.10,.022,"#eebd74");
     }else{
       v.box(0,-.17,0,.075,.25,.08,"#8a6f4d");v.box(0,-.30,0,.36,.07,.10,"#d3bd78");v.box(0,-.63,0,.13,.64,.055,"#c6d9d9");v.box(-.045,-.63,-.005,.035,.62,.065,"#edf5e5");v.box(0,-.98,0,.07,.09,.045,"#e4eee1");
     }
     const mesh=v.build("equipped-"+tool,scene,material);mesh.parent=root;mesh.setEnabled(false);shadow.addShadowCaster(mesh);tools.set(tool,mesh);
   }
-  return {muzzle,select(tool:HandItem|null){for(const [id,mesh] of tools)mesh.setEnabled(id===tool);muzzle.setEnabled(tool==="pistol");}};
+  // Intentionally always present (even when the rod is hidden): the parent reads the rod
+  // tip's absolute world position to run the fishing line out to the float.
+  const rodTip=new TransformNode("fishing-rod-tip",scene);rodTip.parent=root;rodTip.position.set(-.03,-1.50,.082);
+  return {muzzle,rodTip,select(tool:HandItem|null){for(const [id,mesh] of tools)mesh.setEnabled(id===tool);muzzle.setEnabled(tool==="pistol");}};
 }
