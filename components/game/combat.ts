@@ -11,8 +11,10 @@ import { createBulletTrails } from "./gunfire";
 import { inForest,SLIME_SPAWNS } from "./geography";
 export type Weapon="pistol"|"sword";
 export type Slime={x:number;z:number;home:Point;hp:number;yaw:number;phase:number;wait:number;travel:number;flash:number;respawn:number;knockX:number;knockZ:number};
-export type Shot={active:boolean;x:number;z:number;y:number;dx:number;dz:number;remaining:number;travelled:number;generation:number};
-export type HitEvent={x:number;z:number;damage:number;killed:boolean};
+export type Shot={active:boolean;x:number;z:number;y:number;dx:number;dz:number;remaining:number;travelled:number;generation:number;source?:Point};
+export type HitEvent={x:number;z:number;damage:number;killed:boolean;height?:number};
+/** Hostile weapon targets are separate from residents; no cries or resident aggro. */
+export type EnemyTarget={id:string;position:Point;radius:number;alive:boolean;hurt:(damage:number,source:Point,weapon:Weapon)=>number};
 /** Anything the weapons can hurt besides slimes; villagers implement this on their model. */
 export type Hittable={name:string;cry:()=>string;root:{position:Point};hurt:(damage:number,dx:number,dz:number)=>void};
 export const SLIME_HEALTH=3,HIT_FLASH_SECONDS=.22;
@@ -25,6 +27,13 @@ export class CombatModel{
   private cooldown=0;
   private pendingHits:HitEvent[]=[];
   private victims:Hittable[]=[];
+  private enemies:EnemyTarget[]=[];
+  setEnemies(enemies:EnemyTarget[]){this.enemies=enemies;}
+  private hurtEnemy(enemy:EnemyTarget,damage:number,source:Point,weapon:Weapon){
+    const dealt=enemy.hurt(damage,source,weapon);if(dealt<=0)return false;
+    if(this.pendingHits.length>=32)this.pendingHits.shift();
+    this.pendingHits.push({x:enemy.position.x,z:enemy.position.z,damage:dealt,killed:!enemy.alive,height:2.5});return true;
+  }
   takeHits(){return this.pendingHits.splice(0);}
   takeVictims(){return this.victims.splice(0);}
   constructor(private canWalk:(x:number,z:number,r?:number)=>boolean,private clearLine:(a:Point,b:Point)=>boolean,private villagers:Hittable[]=[]){
@@ -68,6 +77,9 @@ export class CombatModel{
     if(this.cooldown>0)return {fired:false,hits:0,heading};
     this.cooldown=weapon==="pistol"?.32:.48;let hits=0;
     if(weapon==="sword"){
+      for(const enemy of this.enemies){const x=enemy.position.x-player.x,z=enemy.position.z-player.z,d=Math.hypot(x,z);
+        if(enemy.alive&&d<=1.5+enemy.radius&&(d<.2||(x*dx+z*dz)/d>.35)&&this.clearLine(player,enemy.position))this.hurtEnemy(enemy,2,player,weapon);
+      }
       for(const s of this.slimes){const x=s.x-player.x,z=s.z-player.z,d=Math.hypot(x,z);
         if(s.hp>0&&d<=2.05&&(d<.2||(x*dx+z*dz)/d>.35)&&this.clearLine(player,s)){this.hit(s,2,d>.001?x:dx,d>.001?z:dz);hits++;}
       }
@@ -78,7 +90,7 @@ export class CombatModel{
       const start=muzzle??{...player,y:(player.y??0)+.88},shot=this.shots.find(s=>!s.active);
       if(shot&&this.clearLine(player,start)){
         const vx=aim.x-start.x,vz=aim.z-start.z,d=Math.hypot(vx,vz);
-        Object.assign(shot,{active:true,x:start.x,z:start.z,y:start.y,dx:d>.001?vx/d:dx,dz:d>.001?vz/d:dz,remaining:11,travelled:0,generation:shot.generation+1});
+        Object.assign(shot,{active:true,x:start.x,z:start.z,y:start.y,dx:d>.001?vx/d:dx,dz:d>.001?vz/d:dz,remaining:11,travelled:0,generation:shot.generation+1,source:{x:player.x,z:player.z}});
       }
     }
     return {fired:true,hits,heading};
@@ -104,6 +116,8 @@ export class CombatModel{
         const step=Math.min(.10,left),next={x:shot.x+shot.dx*step,z:shot.z+shot.dz*step};
         if(!this.clearLine(shot,next)){shot.active=false;break;}
         shot.x=next.x;shot.z=next.z;shot.remaining-=step;shot.travelled+=step;left-=step;
+        const hostile=this.enemies.find(e=>e.alive&&Math.hypot(e.position.x-shot.x,e.position.z-shot.z)<e.radius);
+        if(hostile){this.hurtEnemy(hostile,1,shot.source??shot,"pistol");shot.active=false;continue;}
         const enemy=this.slimes.find(s=>s.hp>0&&Math.hypot(s.x-shot.x,s.z-shot.z)<.48);
         if(enemy){this.hit(enemy,1,shot.dx,shot.dz);hits++;shot.active=false;}
         const victim=this.villagers.find(v=>Math.hypot(v.root.position.x-shot.x,v.root.position.z-shot.z)<.42);

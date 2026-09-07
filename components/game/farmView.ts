@@ -8,6 +8,8 @@ import type { ShadowGenerator } from "@babylonjs/core/Lights/Shadows/shadowGener
 import { Voxels,voxelMaterial } from "./voxel";
 import { TOOLS,tileKey,tileCenter,worldToTile,type FarmTile,type TileInfo,type ToolId,type Point,type TileSeed } from "./farming";
 import type { HandItem } from "./inventory";
+import { PICKAXE_TIP_LOCAL } from "./miningMotion";
+import { SWORD_BLADE_BASE,SWORD_BLADE_TIP } from "./swordMotion";
 
 function border(v:Voxels,x:number,z:number,size:number,y:number,color:string,thickness=.025) {
   for(const side of [-1,1]){
@@ -112,7 +114,7 @@ export function createHeldTools(scene:Scene,hand:TransformNode,shadow:ShadowGene
   const material=voxelMaterial(scene,"hand-tools"),root=new TransformNode("equipped-tool",scene);root.parent=hand;root.position.set(0,-.20,-.02);
   const muzzle=new TransformNode("pistol-muzzle",scene);muzzle.parent=root;muzzle.position.set(0,-.39,-.04);
   const tools=new Map<HandItem,Mesh>();
-  for(const tool of [...TOOLS,"pistol","sword","fishingRod"] as HandItem[]){
+  for(const tool of [...TOOLS,"pistol","sword","fishingRod","pickaxe"] as const){
     const v=new Voxels();
     if(tool==="hoe"){
       v.box(0,-.14,-.04,.07,.72,.07,"#bd925c");v.box(0,-.43,-.13,.31,.075,.26,"#839a93");v.box(0,-.47,-.23,.33,.10,.065,"#bad0bc");
@@ -131,13 +133,39 @@ export function createHeldTools(scene:Scene,hand:TransformNode,shadow:ShadowGene
       v.box(0,-.45,.035,.046,.34,.046,"#b97a3f");v.box(-.008,-.77,.048,.040,.32,.040,"#c98a48");
       v.box(-.016,-1.09,.06,.035,.32,.035,"#d79c57");v.box(-.024,-1.33,.072,.030,.24,.030,"#e2ad65");
       v.box(-.03,-1.44,.082,.022,.10,.022,"#eebd74");
+    }else if(tool==="pickaxe"){
+      // Wooden haft down local -Y with a metal socket and a bent steel head. The head is
+      // kept short (see PICKAXE_TIP_LOCAL) so the carried pick clears the ground and the
+      // strike lands on the rock at MINING_IMPACT_TIME instead of burying the tip.
+      v.box(0,-.05,0,.09,.14,.09,"#6b4b30");
+      v.box(0,-.40,0,.07,.72,.07,"#9b6f45");
+      v.box(-.022,-.36,0,.013,.70,.08,"#b18456");
+      v.box(0,-.74,0,.12,.14,.11,"#8d9aa0");
+      // Forward pick: stepped boxes read as a curved, pointed spike reaching the tip.
+      v.box(0,-.76,-.14,.09,.10,.20,"#a7b3b6");
+      v.box(0,-.775,-.30,.08,.08,.13,"#bcc7c8");
+      v.box(0,-.775,-.42,.06,.06,.08,"#ccd6d6");
+      // Short rear chisel point.
+      v.box(0,-.75,.13,.08,.10,.15,"#8896a0");
     }else{
-      v.box(0,-.17,0,.075,.25,.08,"#8a6f4d");v.box(0,-.30,0,.36,.07,.10,"#d3bd78");v.box(0,-.63,0,.13,.64,.055,"#c6d9d9");v.box(-.045,-.63,-.005,.035,.62,.065,"#edf5e5");v.box(0,-.98,0,.07,.09,.045,"#e4eee1");
+      // Grip is centered in the palm; guard, fuller and tapered tip extend beyond it.
+      v.box(0,0,0,.085,.22,.085,"#806049").box(0,.13,0,.12,.07,.10,"#c4a868");
+      for(const y of [-.07,-.025,.02,.065])v.box(0,y,-.047,.09,.017,.016,"#b59867");
+      v.box(0,-.145,0,.35,.065,.11,"#cfb574").box(0,-.17,0,.12,.08,.08,"#e9d392");
+      v.box(0,-.53,0,.13,.66,.055,"#b6cacc").box(-.047,-.53,-.005,.03,.64,.065,"#edf5e5");
+      v.box(.006,-.51,-.032,.035,.55,.012,"#819ba3");
+      v.box(0,-.865,0,.09,.09,.05,"#d7e7e1").box(0,-.925,0,.045,.03,.04,"#f0f7eb");
     }
     const mesh=v.build("equipped-"+tool,scene,material);mesh.parent=root;mesh.setEnabled(false);shadow.addShadowCaster(mesh);tools.set(tool,mesh);
   }
   // Intentionally always present (even when the rod is hidden): the parent reads the rod
   // tip's absolute world position to run the fishing line out to the float.
   const rodTip=new TransformNode("fishing-rod-tip",scene);rodTip.parent=root;rodTip.position.set(-.03,-1.50,.082);
-  return {muzzle,rodTip,select(tool:HandItem|null){for(const [id,mesh] of tools)mesh.setEnabled(id===tool);muzzle.setEnabled(tool==="pistol");}};
+  // The pick head, likewise always present: the parent reads this to place the strike
+  // and any debris. It sits at the actual steel head (PICKAXE_TIP_LOCAL) that the voxel
+  // model is built around, and swings through the pose above.
+  const pickaxeTip=new TransformNode("pickaxe-tip",scene);pickaxeTip.parent=root;pickaxeTip.position.set(PICKAXE_TIP_LOCAL.x,PICKAXE_TIP_LOCAL.y,PICKAXE_TIP_LOCAL.z);
+  const swordBase=new TransformNode("sword-blade-base",scene);swordBase.parent=root;swordBase.position.set(SWORD_BLADE_BASE.x,SWORD_BLADE_BASE.y,SWORD_BLADE_BASE.z);
+  const swordTip=new TransformNode("sword-blade-tip",scene);swordTip.parent=root;swordTip.position.set(SWORD_BLADE_TIP.x,SWORD_BLADE_TIP.y,SWORD_BLADE_TIP.z);
+  return {muzzle,rodTip,pickaxeTip,swordBase,swordTip,select(tool:HandItem|null){for(const [id,mesh] of tools)mesh.setEnabled(id===tool);muzzle.setEnabled(tool==="pistol");}};
 }

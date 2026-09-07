@@ -22,7 +22,7 @@ try{
   const evaluate=async expression=>{const r=await call('Runtime.evaluate',{expression,returnByValue:true,awaitPromise:true});if(r.exceptionDetails)throw new Error(r.exceptionDetails.exception?.description??r.exceptionDetails.text);return r.result.value;};
   const wait=async(expression,timeout=20000)=>{const start=Date.now();while(Date.now()-start<timeout){const v=await evaluate(expression);if(v)return v;await sleep(35);}throw new Error('Timed out waiting: '+expression);};
   const key=async(key,down,code=key.length===1?'Key'+key.toUpperCase():key)=>call('Input.dispatchKeyEvent',{type:down?'keyDown':'keyUp',key,code,windowsVirtualKeyCode:key===' '?32:key.length===1?key.toUpperCase().charCodeAt(0):undefined});
-  const space=down=>key(' ',down,'Space');
+  const space=down=>key('f',down,'KeyF');
   const phase=name=>`document.querySelector('canvas')?.dataset.fishingPhase==='${name}'`;
   const noPanel=async()=>assert.equal(await evaluate(`document.querySelectorAll('.fishing-panel').length`),0,'No hint panel may obscure the water before hooking');
   const cancel=async()=>{await key('Escape',true);await key('Escape',false);await wait(phase('idle'));};
@@ -51,7 +51,7 @@ try{
   await wait(`Number(document.querySelector('.fishing-charge').dataset.power)>.9`);
   await wait(`Number(document.querySelector('.fishing-charge').dataset.power)<.25`);
   assert.equal(await evaluate(`document.querySelector('canvas').dataset.fishingPhase`),'charging','Holding through a whole oscillation never throws automatically');
-  // A mouse release must not release an unrelated held Space gesture.
+  // A mouse release must not release an unrelated held F gesture.
   await call('Input.dispatchMouseEvent',{type:'mouseReleased',x:710,y:470,button:'left',clickCount:1});
   assert.equal(await evaluate(`document.querySelector('canvas').dataset.fishingPhase`),'charging');
   await wait(`Number(document.querySelector('.fishing-charge').dataset.power)>.75`);await screenshot('fishing-charging');
@@ -101,7 +101,7 @@ try{
   await evaluate(`document.querySelector('.fishing-cancel').click()`);await wait(phase('idle'));await noPanel();
   assert.equal(await evaluate(`Array.from(document.querySelectorAll('.pack-slot')).map(e=>e.getAttribute('aria-label')).filter(s=>/鲤鱼|河鲈/.test(s)).join()`),fishSlots.join(),'Cancelling gives no extra fish');
   assert.equal(errors.length,0,errors.join('\n'));
-  console.log(JSON.stringify({result:'passed',url,fishSlots,lowDistance,highDistance,checks:'no pre-hook panel; hold/oscillate/release casting; stronger power lands farther; pause cancels wind-up; input-source isolation; water exclamation -> Space fight; original catch flight; touch charge/hook/reel; responsive layouts; no runtime exceptions'}));
+  console.log(JSON.stringify({result:'passed',url,fishSlots,lowDistance,highDistance,checks:'no pre-hook panel; hold/oscillate/release casting; stronger power lands farther; pause cancels wind-up; input-source isolation; water exclamation -> F fight; original catch flight; touch charge/hook/reel; responsive layouts; no runtime exceptions'}));
 }finally{
   if(ws?.readyState===WebSocket.OPEN)ws.close();for(const p of pending.values())clearTimeout(p.timer);
   browser.kill();await sleep(400);await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200}).catch(()=>{});

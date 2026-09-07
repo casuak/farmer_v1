@@ -1,0 +1,12 @@
+.pickup-layer{position:absolute;inset:0;z-index:16;pointer-events:none;overflow:hidden;contain:layout style;user-select:none}
+.pickup-flight{position:absolute;left:0;top:0;width:44px;height:44px;display:grid;place-items:center;border-radius:50%;background:radial-gradient(circle,#fff4cdee 0%,#fff3c77a 45%,#fff2c400 73%);filter:drop-shadow(0 2px 2px #384c3659);transform-origin:center;will-change:transform,opacity;pointer-events:none}
+.pickup-flight[hidden]{display:none}
+.pickup-flight-art{width:34px;height:34px;display:grid;place-items:center}
+.pickup-flight-art>.item-art{width:32px;height:32px;stroke-width:2.1;object-fit:contain;image-rendering:pixelated;max-width:none}
+.pickup-flight-count{position:absolute;right:-8px;bottom:-3px;padding:1px 5px;border:1px solid #d9c886;border-radius:8px;background:#fff8da;color:#526045;font-size:12px;font-weight:800;line-height:16px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.pickup-flight-count[hidden]{display:none}
+.pickup-flight-spark{position:absolute;left:20px;top:20px;width:5px;height:5px;border-radius:1px;background:#fff5b5;box-shadow:0 0 5px #ffe79e;pointer-events:none;will-change:transform,opacity}
+.farm .pack-slot[data-pickup-received=true]{outline:2px solid #fff0a6;outline-offset:2px;background:#fff3c9;box-shadow:0 0 0 1px #cba869,inset 0 0 12px #fffce9,0 0 18px #ffe7a778}
+.pickup-layer[data-motion=false] .pickup-flight{filter:none;background:none}
+.pickup-layer[data-motion=false] .pickup-flight-spark{display:none}
+@media(prefers-reduced-motion:reduce){.pickup-flight{filter:none}.pickup-flight-spark{display:none}}

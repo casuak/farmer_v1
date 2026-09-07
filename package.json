@@ -16,7 +16,20 @@
     "typecheck": "tsc --noEmit",
     "test:world": "esbuild scripts/verify-world.ts --bundle --platform=node --format=esm --outfile=.cache/verify-world.mjs && node .cache/verify-world.mjs",
     "test:fishing": "esbuild scripts/verify-fishing.ts --bundle --platform=node --format=esm --outfile=.cache/verify-fishing.mjs && node .cache/verify-fishing.mjs",
-    "test:fishing:browser": "node scripts/verify-fishing-browser.mjs"
+    "test:fishing:browser": "node scripts/verify-fishing-browser.mjs",
+    "test:mining": "esbuild scripts/verify-mining.ts --bundle --platform=node --format=esm --outfile=.cache/verify-mining.mjs && node .cache/verify-mining.mjs",
+    "test:mining:browser": "node scripts/verify-mining-browser.mjs",
+    "test:mining:hold": "esbuild scripts/verify-mining-hold.ts --bundle --platform=node --format=esm --outfile=.cache/verify-mining-hold.mjs && node .cache/verify-mining-hold.mjs && esbuild scripts/verify-ground-drops.ts --bundle --platform=node --format=esm --outfile=.cache/verify-ground-drops.mjs && node .cache/verify-ground-drops.mjs",
+    "test:music": "esbuild scripts/verify-music.ts --bundle --platform=node --format=esm --outfile=.cache/verify-music.mjs && node .cache/verify-music.mjs",
+    "test:music:browser": "node scripts/verify-music-browser.mjs",
+    "test:beach-boss": "esbuild scripts/verify-beach-boss.ts --bundle --platform=node --format=esm --outfile=.cache/verify-beach-boss.mjs && node .cache/verify-beach-boss.mjs && esbuild scripts/verify-beach-boss-view.ts --bundle --platform=node --format=esm --outfile=.cache/verify-beach-boss-view.mjs && node .cache/verify-beach-boss-view.mjs",
+    "test:beach-boss:browser": "node scripts/verify-beach-boss-browser.mjs",
+    "test:pickups": "esbuild scripts/verify-pickups.ts --bundle --platform=node --format=esm --outfile=.cache/verify-pickups.mjs && node .cache/verify-pickups.mjs",
+    "test:pickups:browser": "node scripts/verify-pickups-browser.mjs",
+    "test:sword": "esbuild scripts/verify-sword.ts --bundle --platform=node --format=esm --outfile=.cache/verify-sword.mjs && node .cache/verify-sword.mjs",
+    "test:sword:browser": "node scripts/verify-sword-browser.mjs",
+    "test:dodge": "esbuild scripts/verify-dodge.ts --bundle --platform=node --format=esm --outfile=.cache/verify-dodge.mjs && node .cache/verify-dodge.mjs",
+    "test:dodge:browser": "node scripts/verify-dodge-browser.mjs"
   },
   "dependencies": {
     "@babylonjs/core": "^9.14.0",

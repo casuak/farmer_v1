@@ -1,0 +1,308 @@
+/* Beach rhino mini-boss top HUD. Ivory / sea-sand card, orange-red health,
+   deep-sea teal accents — stays in the game's soft hand-drawn family, not a
+   web banner. Only mounted when the boss snapshot is visible. */
+
+.boss-hud {
+  position: absolute;
+  top: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 440px;
+  max-width: calc(100vw - 28px);
+  z-index: 6;
+  pointer-events: none;
+  color: #2d5357;
+  padding: 14px 18px 12px;
+  border-radius: 18px;
+  border: 1px solid #c7d9cf;
+  background: linear-gradient(155deg, #fdf9edf5, #e9efe1f5 70%, #e4eef0f5);
+  box-shadow:
+    inset 0 1px 0 #ffffff82,
+    0 4px 0 #2c4a4a2e,
+    0 12px 30px #24474324;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  animation: boss-appear 0.26s ease-out;
+}
+
+/* Heading: name + subtitle on the left, big orange HP count on the right. */
+.boss-hud-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+.boss-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.boss-name {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  line-height: 1.2;
+  color: #2a585c;
+}
+.boss-sub {
+  font-size: 11px;
+  letter-spacing: 2px;
+  font-weight: 600;
+  color: #8a927b;
+}
+.boss-hp-num {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.boss-hp-num b {
+  font-size: 24px;
+  font-weight: 800;
+  line-height: 1;
+  color: #c4513a;
+}
+.boss-hp-num small {
+  font-size: 13px;
+  font-weight: 650;
+  color: #8a927b;
+}
+
+/* Wide orange-red health bar on a pale sea-sand track. */
+.boss-hp {
+  margin-top: 10px;
+}
+.boss-hp-track {
+  height: 13px;
+  border-radius: 8px;
+  border: 1px solid #b9cdc0;
+  background: #d7e2d3;
+  overflow: hidden;
+  box-shadow: inset 0 1px 2px #2d5a5922;
+}
+.boss-hp-fill {
+  display: block;
+  height: 100%;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #e05f48, #f0905a);
+  box-shadow:
+    inset 0 1px 0 #ffd9b155,
+    0 0 0 1px #e07a4c33;
+  transition: width 0.18s ease;
+  will-change: width;
+}
+
+/* Status row: thin telegraph line (windup orange range) + short hint. */
+.boss-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 9px;
+  min-height: 16px;
+}
+.boss-telegraph {
+  flex: 1;
+  max-width: 150px;
+  height: 3px;
+  border-radius: 2px;
+  background: #e6e0d2;
+  overflow: hidden;
+}
+.boss-telegraph span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #f0a24b, #e2633f);
+}
+.boss-phase {
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.2px;
+  color: #6f8a7e;
+}
+
+/* Player mini-row: 5 hearts + invulnerable chip. Only shows with the boss. */
+.boss-player {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid #d6e0d3;
+}
+.boss-player-label {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 1px;
+  color: #7c8b7e;
+}
+.boss-hearts {
+  display: flex;
+  gap: 4px;
+}
+.boss-heart {
+  width: 16px;
+  height: 16px;
+  stroke-width: 2;
+  color: #cfd8ca;
+}
+.boss-heart.is-empty {
+  fill: none;
+}
+.boss-heart.is-full {
+  fill: #e2634f;
+  color: #e2634f;
+  filter: drop-shadow(0 1px 1px #a8382a4d);
+}
+.boss-invuln {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 650;
+  color: #4f7c86;
+  background: #e0eef0;
+  border: 1px solid #c2dadd;
+  border-radius: 20px;
+  padding: 3px 9px;
+}
+.boss-invuln::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #6fb0bd;
+  box-shadow: 0 0 0 0 #6fb0bd66;
+  animation: boss-invuln-pulse 1.2s ease-out infinite;
+}
+
+/* Windup / charge telegraphs read as danger. */
+.boss-hud.is-danger .boss-phase {
+  color: #c4513a;
+  animation: boss-hint-pulse 1s ease-in-out infinite;
+}
+.boss-hud.is-danger .boss-name {
+  color: #b4503c;
+}
+
+.boss-hud[data-boss-enraged=true]{border-color:#d7966e;background:linear-gradient(155deg,#fff2e4f5,#f4e1c7f5 70%,#e9e8d5f5)}
+.boss-hud[data-boss-enraged=true] .boss-sub{color:#b95c35;font-weight:800}
+/* Defeated: drain, desaturate and settle. */
+.boss-hud.is-defeated {
+  filter: saturate(0.85);
+  opacity: 0.93;
+}
+.boss-hud.is-defeated .boss-hp-fill {
+  background: #b9c6bb;
+  box-shadow: none;
+}
+.boss-hud.is-defeated .boss-name {
+  color: #5f7280;
+}
+.boss-hud.is-defeated .boss-phase {
+  color: #8a927b;
+  animation: none;
+}
+
+@keyframes boss-appear {
+  from { opacity: 0; transform: translate(-50%, -6px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes boss-hint-pulse {
+  50% { color: #dc5a3c; text-shadow: 0 1px 6px #e2633f40; }
+}
+@keyframes boss-invuln-pulse {
+  70% { box-shadow: 0 0 0 4px #6fb0bd00; }
+  100% { box-shadow: 0 0 0 0 #6fb0bd00; }
+}
+
+/* Non-core HUD gets out of the way only while a boss is on screen. */
+.farm.has-boss .chapter,
+.farm.has-boss .mini-map-card,
+.farm.has-boss .quick-time,
+.farm.has-boss .world-right-rail {
+  display: none;
+}
+
+/* Mid screens: slide below the brand / calendar row so nothing overlaps. */
+@media (max-width: 1150px) and (min-width: 641px) {
+  .boss-hud {
+    top: 112px;
+  }
+}
+
+/* Phones: compact, full width, pinned high above movement + backpack. */
+@media (max-width: 640px) {
+  .boss-hud {
+    top: 84px;
+    width: calc(100vw - 26px);
+    max-width: calc(100vw - 26px);
+    padding: 11px 14px 9px;
+    border-radius: 15px;
+  }
+  .boss-name {
+    font-size: 17px;
+    letter-spacing: 0.5px;
+  }
+  .boss-sub {
+    font-size: 10px;
+    letter-spacing: 1.5px;
+  }
+  .boss-hud-head {
+    gap: 10px;
+  }
+  .boss-hp-num b {
+    font-size: 20px;
+  }
+  .boss-hp-fill {
+    transition: width 0.18s ease;
+  }
+  .boss-phase {
+    font-size: 11px;
+  }
+  .boss-heart {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Low-height landscape: below the shrunken top row, compact. */
+@media (max-height: 560px) and (min-width: 641px) {
+  .boss-hud {
+    top: 70px;
+    width: min(440px, calc(100vw - 360px));
+    padding: 9px 14px 8px;
+    border-radius: 14px;
+  }
+  .boss-name {
+    font-size: 17px;
+  }
+  .boss-hp-num b {
+    font-size: 20px;
+  }
+  .boss-player {
+    margin-top: 7px;
+    padding-top: 7px;
+  }
+  .boss-heart {
+    width: 13px;
+    height: 13px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boss-hud {
+    animation: none;
+    transition: none;
+  }
+  .boss-hp-fill {
+    transition: none;
+  }
+  .boss-hud.is-danger .boss-phase,
+  .boss-invuln::before {
+    animation: none;
+  }
+}

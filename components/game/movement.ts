@@ -2,7 +2,7 @@ import type { Point } from "./farming";
 import type { HandItem } from "./inventory";
 
 export const WALK_SPEED=3.0*2;
-export const SPRINT_SPEED=3.0*4;
+export const SPRINT_SPEED=3.0*3;
 
 /** Key repeat never flips the mode a second time; key-up only releases the latch. */
 export class MovementMode {

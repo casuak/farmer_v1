@@ -12,6 +12,7 @@
 #       bash dev.sh --rebuild    强制重新构建 dist/ 后启动
 #       bash dev.sh stop         停止(通过容器名)
 # ------------------------------------------------------------
+docker stop farmer-v1-dev
 
 set -e
 

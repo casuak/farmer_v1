@@ -13,6 +13,7 @@ import { createOcean } from "./ocean";
 import { createResidents } from "./npcs";
 import { INITIAL_SUN,type SolarState } from "./dayNight";
 import { STREET_LIGHTS } from "./streetLights";
+import { MiningModel,reservedForOre } from "./mining";
 import { BOUNDS,BUILDINGS,BRIDGES,FARM_SPAWN,riverCenter,isRiver,isSea,isWater,onBridge,onDock,isBeach,isPath,isGarden,isPlaza,nearRoad,regionId,surfaceKind,groundHeight } from "./geography";
 export { BOUNDS,riverCenter,isWater,onBridge,isPath,isGarden } from "./geography";
 
@@ -27,6 +28,7 @@ export function buildWorld(scene:Scene,shadow:ShadowGenerator) {
   const roofMat=voxelMaterial(scene,"sunlit-terracotta");roofMat.specularColor=Color3.FromHexString("#ffe6bb").scale(.05);roofMat.specularPower=48;
   const terrain=new Voxels(),details=new Voxels(),props=new Voxels(),water=new Voxels();
   const obstacles:Obstacle[]=[];
+  const mining=new MiningModel(clearReach);
   const occluders:Occluder[]=[];
   const tiles:TileSeed[]=[];
   const clutter=new Map<string,{from:number;to:number}[]>();
@@ -53,6 +55,7 @@ export function buildWorld(scene:Scene,shadow:ShadowGenerator) {
   }
 
   function rock(x:number,z:number,s=1) {
+    if(reservedForOre(x,z,s*.8+.6))return;
     props.box(x,.25*s,z,.9*s,.5*s,.75*s,pick(["#a8aaa0","#afb2a3","#bbbcb0"]));
     props.box(x-.1*s,.55*s,z+.02*s,.6*s,.18*s,.55*s,"#c7c9b6");
     props.box(x+.3*s,.1*s,z-.22*s,.38*s,.2*s,.3*s,"#979e8b");
@@ -66,7 +69,7 @@ export function buildWorld(scene:Scene,shadow:ShadowGenerator) {
     details.box(x,h+.03,z,.07,.14,.07,"#f8db82");
   }
   function tree(x:number,z:number,s=1,type:"oak"|"pine"|"pink"="oak") {
-    if(isWater(x,z)||nearRoad(x,z,.45)||isGarden(x,z)||BUILDINGS.some(b=>Math.abs(b.x-x)<b.w/2+1&&Math.abs(b.z-z)<b.d/2+1)||STREET_LIGHTS.some(l=>Math.hypot(l.x-x,l.z-z)<1.05))return;
+    if(reservedForOre(x,z,2.05)||isWater(x,z)||nearRoad(x,z,.45)||isGarden(x,z)||BUILDINGS.some(b=>Math.abs(b.x-x)<b.w/2+1&&Math.abs(b.z-z)<b.d/2+1)||STREET_LIGHTS.some(l=>Math.hypot(l.x-x,l.z-z)<1.05))return;
     const trunk=new Voxels();
     trunk.box(x,.95*s,z,.40*s,1.9*s,.4*s,"#886548");
     trunk.box(x+.18*s,1.45*s,z,.35*s,.35*s,.3*s,"#96744d");
@@ -111,7 +114,7 @@ export function buildWorld(scene:Scene,shadow:ShadowGenerator) {
   for(let i=0;i<6600;i++) {
     const x=random()*(MAP_WIDTH-3)-BOUNDS.x+1.5,z=random()*(MAP_DEPTH-3)-BOUNDS.z+1.5;
     if(isWater(x,z)||isBeach(x,z)||isPath(x,z)||roomAt({x,z})||obstacles.some(o=>Math.abs(x-o.x)<o.w/2+.22&&Math.abs(z-o.z)<o.d/2+.22))continue;
-    if(isGarden(x,z)||isPlaza(x,z))continue;
+    if(isGarden(x,z)||isPlaza(x,z)||reservedForOre(x,z,.3))continue;
     const from=details.vertexCount;
     const lush=regionId({x,z})!=="farm";
     if(random()<(lush?.29:.045)) {
@@ -152,7 +155,7 @@ export function buildWorld(scene:Scene,shadow:ShadowGenerator) {
   for(const tile of tiles) {
     const x=tile.x+.5,z=tile.z+.5;
     const o=obstacles.find(o=>Math.abs(x-o.x)<o.w/2+.14&&Math.abs(z-o.z)<o.d/2+.14);
-    if(o)tile.kind=o.kind;
+    if(o||mining.blocks(x,z,.1))tile.kind=o?.kind??"rock";
     if(!o&&roomAt({x,z}))tile.kind="floor";
     if(obstacles.some(o=>o.kind==="tree"&&Math.floor(o.x)===tile.x&&Math.floor(o.z)===tile.z))tile.kind="tree";
   }
@@ -175,7 +178,7 @@ export function buildWorld(scene:Scene,shadow:ShadowGenerator) {
     if(Math.abs(x)>BOUNDS.x-.5-r||Math.abs(z)>BOUNDS.z-.5-r)return false;
     for(const [dx,dz] of [[-r,-r],[r,-r],[-r,r],[r,r]])
       if(isWater(x+dx,z+dz)&&!onBridge(x+dx,z+dz)&&!onDock(x+dx,z+dz))return false;
-    return !obstacles.some(o=>Math.abs(x-o.x)<o.w/2+r&&Math.abs(z-o.z)<o.d/2+r);
+    return !mining.blocks(x,z,r)&&!obstacles.some(o=>Math.abs(x-o.x)<o.w/2+r&&Math.abs(z-o.z)<o.d/2+r);
   }
   function update(time:number,motion:boolean,player?:{x:number;y:number;z:number},shadows=true,dt=0,solar:SolarState=INITIAL_SUN,focus:{x:number;z:number}=player??FARM_SPAWN) {
     ambience.update(time,motion,solar);ocean.update(time,motion,solar);residents.update(dt,time,motion,player);
@@ -200,5 +203,5 @@ export function buildWorld(scene:Scene,shadow:ShadowGenerator) {
   function propKind(x:number,z:number):TileKind {
     return obstacles.find(o=>Math.abs(x-o.x)<o.w/2+.20&&Math.abs(z-o.z)<o.d/2+.20)?.kind??(onDock(x,z)?"dock":onBridge(x,z)?"bridge":roomAt({x,z})?"floor":"decoration");
   }
-  return {canWalk,obstacles,occluders,tiles,clearReach,clearTile,propKind,update,rooms,roomAt,residents,streetLights,heightAt:(x:number,z:number)=>roomAt({x,z}) ? .08 : groundHeight(x,z)};
+  return {canWalk,mining,obstacles,occluders,tiles,clearReach,clearTile,propKind,update,rooms,roomAt,residents,streetLights,heightAt:(x:number,z:number)=>roomAt({x,z}) ? .08 : groundHeight(x,z)};
 }

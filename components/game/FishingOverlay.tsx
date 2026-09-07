@@ -37,9 +37,9 @@ export default function FishingOverlay({state,readState,onPress,onRelease,onCanc
         <span className="fishing-perfect">{s.perfect?"✦ 完美跟随中":"慢慢来，稳住节奏"}</span>
       </div>
     </div>:s.fish&&<div className="fishing-catch-card"><ItemIcon id={s.fish.id}/><div><strong>{ITEMS[s.fish.id].name}<span> ×1</span></strong><p>{s.fish.length} cm · {ITEMS[s.fish.id].sell} G{s.fish.perfect?" · 完美！":""}</p><small>跃出水面，收进物品栏…</small></div></div>}
-    {reeling&&<button type="button" className="fishing-hold" data-held={s.held} disabled={paused} onPointerDown={down} onPointerUp={up} onPointerCancel={onRelease} onLostPointerCapture={onRelease} onKeyDown={e=>{if(e.code==="Space"||e.key==="Enter"){e.preventDefault();e.stopPropagation();if(!e.repeat)onPress();}}} onKeyUp={e=>{if(e.code==="Space"||e.key==="Enter"){e.preventDefault();e.stopPropagation();onRelease();}}} onBlur={onRelease} onClick={e=>{if(e.detail===0){onPress();onRelease();}}}>
-      <MousePointer2 size={16}/>{s.held?"正在上浮 · 松开下沉":"按住上浮"}<kbd>Space</kbd>
+    {reeling&&<button type="button" className="fishing-hold" data-held={s.held} disabled={paused} onPointerDown={down} onPointerUp={up} onPointerCancel={onRelease} onLostPointerCapture={onRelease} onKeyDown={e=>{if(e.code==="KeyF"||e.key==="Enter"){e.preventDefault();e.stopPropagation();if(!e.repeat)onPress();}}} onKeyUp={e=>{if(e.code==="KeyF"||e.key==="Enter"){e.preventDefault();e.stopPropagation();onRelease();}}} onBlur={onRelease} onClick={e=>{if(e.detail===0){onPress();onRelease();}}}>
+      <MousePointer2 size={16}/>{s.held?"正在上浮 · 松开下沉":"按住上浮"}<kbd>F</kbd>
     </button>}
-    <p className="fishing-instructions" id="fishing-instructions">{reeling?"长按鼠标左键 / 空格 / 上方按钮控制":"鱼已钓获 · 正在收入物品栏"}{reeling&&<span>Esc 收竿</span>}</p>
+    <p className="fishing-instructions" id="fishing-instructions">{reeling?"长按鼠标左键 / F / 上方按钮控制":"鱼已钓获 · 正在收入物品栏"}{reeling&&<span>Esc 收竿</span>}</p>
   </section>;
 }

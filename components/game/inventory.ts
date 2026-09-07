@@ -1,6 +1,6 @@
 export type FishId="carp"|"perch"|"sardine"|"redSnapper";
-export type ItemId="hoe"|"seeds"|"water"|"scythe"|"turnip"|"wood"|"shell"|"hat"|"shirt"|"backpack"|"pistol"|"sword"|"fishingRod"|FishId;
-export type HandItem="hoe"|"seeds"|"water"|"scythe"|"pistol"|"sword"|"fishingRod";
+export type ItemId="hoe"|"seeds"|"water"|"scythe"|"turnip"|"wood"|"shell"|"hat"|"shirt"|"backpack"|"pistol"|"sword"|"fishingRod"|"pickaxe"|"stone"|"copperOre"|"ironOre"|"crystal"|FishId;
+export type HandItem="hoe"|"seeds"|"water"|"scythe"|"pistol"|"sword"|"fishingRod"|"pickaxe";
 export type Stack={id:ItemId;count:number};
 export type InventorySnapshot={slots:(Stack|null)[];selected:number;gold:number;backpack:boolean};
 export const MAIN_SLOTS=12,BASE_SLOTS=15,BACKPACK_SLOTS=8,BACKPACK_PRICE=120;
@@ -20,21 +20,37 @@ export const ITEMS:Record<ItemId,{name:string;description:string;max:number;sell
   backpack:{name:"帆布背包",description:"背部装备 · 增加 8 格，清空后可卸下",max:1,sell:60,buy:120,color:"#91a46b"},
   pistol:{name:"手枪",description:"朝鼠标方向射击 · 无需补充弹药",max:1,sell:40,buy:90,color:"#8b9ca7"},
   sword:{name:"长剑",description:"朝鼠标方向挥斩 · 攻击身前的史莱姆",max:1,sell:30,buy:75,color:"#c3d0cf"},
-  fishingRod:{name:"竹钓竿",description:"按住空格蓄力，松开甩竿 · 水花叹号时按空格提竿",max:1,sell:22,buy:60,color:"#a98a54"},
+  fishingRod:{name:"竹钓竿",description:"按住F蓄力，松开甩竿 · 水花叹号时按F提竿",max:1,sell:22,buy:60,color:"#a98a54"},
   carp:{name:"鲤鱼",description:"一身金鳞的池塘常客 · 可出售",max:20,sell:22,buy:0,color:"#cf9346"},
   perch:{name:"河鲈",description:"带深色条纹的河鱼 · 可出售",max:20,sell:18,buy:0,color:"#8faa4f"},
   sardine:{name:"沙丁鱼",description:"银亮亮的洄游小鱼 · 可出售",max:20,sell:12,buy:0,color:"#a8c8da"},
   redSnapper:{name:"红鲷",description:"通体红艳的深海风味 · 可出售",max:20,sell:30,buy:0,color:"#e06a4a"},
+  pickaxe:{name:"矿镐",description:"按 8 选中 · 按住左键 / F连续挖矿；矿物落地后 E 拾取",max:1,sell:20,buy:60,color:"#9db3b8"},
+  stone:{name:"石料",description:"采矿掉落的碎岩，可出售",max:50,sell:2,buy:0,color:"#9aa0a6"},
+  copperOre:{name:"铜矿石",description:"嵌着橙铜块的矿石，可出售",max:30,sell:9,buy:0,color:"#c07f52"},
+  ironOre:{name:"铁矿石",description:"闪着蓝灰铁纹的矿石，可出售",max:30,sell:14,buy:0,color:"#7f8ea8"},
+  crystal:{name:"晶石",description:"泛着柔紫光泽的晶簇，可出售",max:20,sell:28,buy:0,color:"#b39be5"},
 };
 export type InventoryResult={ok:boolean;message:string};
+export type InventoryGain={slot:number;id:ItemId;count:number};
+/** Receipts for an actual award, including merges and overflow into multiple slots. */
+export function inventoryGains(before:readonly (Stack|null)[],after:readonly (Stack|null)[]):InventoryGain[]{
+  const gains:InventoryGain[]=[];
+  after.forEach((item,slot)=>{
+    if(!item||isEquipmentSlot(slot))return;
+    const previous=before[slot],count=item.count-(previous?.id===item.id?previous.count:0);
+    if(count>0)gains.push({slot,id:item.id,count});
+  });
+  return gains;
+}
 const clone=(slots:(Stack|null)[])=>slots.map(s=>s?{...s}:null);
 
 export class InventoryModel {
   slots:(Stack|null)[]=Array.from({length:BASE_SLOTS},()=>null);
   selected=0;gold=200;
-  constructor(){this.slots[0]={id:"hoe",count:1};this.slots[1]={id:"seeds",count:24};this.slots[2]={id:"water",count:1};this.slots[3]={id:"scythe",count:1};this.slots[4]={id:"pistol",count:1};this.slots[5]={id:"sword",count:1};this.slots[6]={id:"fishingRod",count:1};this.slots[12]={id:"hat",count:1};this.slots[13]={id:"shirt",count:1};}
+  constructor(){this.slots[0]={id:"hoe",count:1};this.slots[1]={id:"seeds",count:24};this.slots[2]={id:"water",count:1};this.slots[3]={id:"scythe",count:1};this.slots[4]={id:"pistol",count:1};this.slots[5]={id:"sword",count:1};this.slots[6]={id:"fishingRod",count:1};this.slots[7]={id:"pickaxe",count:1};this.slots[12]={id:"hat",count:1};this.slots[13]={id:"shirt",count:1};}
   get backpack(){return this.slots[14]?.id==="backpack";}
-  get hand():HandItem|null{const id=this.slots[this.selected]?.id;return id&&["hoe","seeds","water","scythe","pistol","sword","fishingRod"].includes(id)?id as HandItem:null;}
+  get hand():HandItem|null{const id=this.slots[this.selected]?.id;return id&&["hoe","seeds","water","scythe","pistol","sword","fishingRod","pickaxe"].includes(id)?id as HandItem:null;}
   get backpackOccupied(){return this.slots.slice(BASE_SLOTS).some(Boolean);}
   private resize(){const length=BASE_SLOTS+(this.backpack?BACKPACK_SLOTS:0);while(this.slots.length<length)this.slots.push(null);this.slots.length=length;if(this.selected>=length)this.selected=0;}
   snapshot():InventorySnapshot{return {slots:clone(this.slots),selected:this.selected,gold:this.gold,backpack:this.backpack};}

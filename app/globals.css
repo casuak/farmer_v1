@@ -156,6 +156,8 @@ kbd{font-family:inherit;font-size:12px;font-weight:700;display:inline-flex;justi
 .phase-three .chapter{color:#476544}.phase-three .calendar{gap:17px}
 .gold-wallet{display:flex;align-items:center;gap:10px;padding-left:17px;border-left:1px solid #d7dcc8;color:#ac813c}
 .gold-wallet>svg{width:21px;height:21px}.gold-wallet strong{font-size:23px;letter-spacing:.3px;font-variant-numeric:tabular-nums;color:#84683e}.gold-wallet small{font-size:12px;margin-left:5px;color:#b2986d}
+.fps-chip{display:flex;align-items:center;gap:9px;padding-left:17px;border-left:1px solid #d7dcc8}
+.fps-chip>svg{width:21px;height:21px;color:#7d9468}.fps-chip strong{font-size:23px;letter-spacing:.3px;font-variant-numeric:tabular-nums;color:#5f7355;min-width:2ch;text-align:right}.fps-chip small{font-size:12px;margin-left:5px;color:#93a180}
 .phase-three .place{left:30px;bottom:154px;max-width:250px}
 .phase-three .camera-tag{bottom:85px}.phase-three .controls{bottom:24px;gap:8px}.phase-three .map-control{display:none}
 .mini-map-card{top:154px;left:28px;width:176px;padding:11px;border-radius:15px;pointer-events:auto;color:#667c5a;text-align:left}
@@ -230,8 +232,8 @@ kbd{font-family:inherit;font-size:12px;font-weight:700;display:inline-flex;justi
 .clock-rate-heading button{display:flex;align-items:center;gap:3px;padding:5px 7px;border-radius:7px;background:#e3e9d2;font-size:12px;color:#5f7553}
 .clock-rate-caption{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;color:#8b957e;margin-top:10px}
 .clock-rate-caption strong{font-weight:500;color:#6f815f}.time-controls p{font-size:12px;color:#89947e;line-height:1.7;margin:12px 0 0}
-@media(max-width:640px){.calendar-clock time{font-size:20px}.calendar-clock small{font-size:12px;margin-top:4px}.phase-three .calendar{gap:8px;padding:10px}.phase-three .gold-wallet{padding-left:8px;gap:4px}.phase-three .gold-wallet>svg{display:none}.phase-three .gold-wallet strong{font-size:18px}.time-controls{padding:14px;margin-top:16px}.time-controls-heading output{font-size:23px}.time-presets{gap:4px}.time-presets button{font-size:14px;gap:4px}.time-presets svg{width:14px}.phase-three .brand p{letter-spacing:1.3px}}
-@media(max-width:374px){.phase-three .brand-icon{display:none}.phase-three .calendar{right:10px}.calendar-clock time{font-size:19px}.time-presets button{flex-direction:column;gap:5px;padding:8px 3px}}
+@media(max-width:640px){.calendar-clock time{font-size:20px}.calendar-clock small{font-size:12px;margin-top:4px}.phase-three .calendar{gap:8px;padding:10px}.phase-three .gold-wallet{padding-left:8px;gap:4px}.phase-three .gold-wallet>svg{display:none}.phase-three .gold-wallet strong{font-size:18px}.phase-three .fps-chip{gap:5px;padding-left:8px}.phase-three .fps-chip>svg{width:16px}.phase-three .fps-chip strong{font-size:18px}.phase-three .fps-chip small{font-size:10px}.time-controls{padding:14px;margin-top:16px}.time-controls-heading output{font-size:23px}.time-presets{gap:4px}.time-presets button{font-size:14px;gap:4px}.time-presets svg{width:14px}.phase-three .brand p{letter-spacing:1.3px}}
+@media(max-width:374px){.phase-three .brand-icon{display:none}.phase-three .calendar{right:10px}.calendar-clock time{font-size:19px}.phase-three .fps-chip small{display:none}.time-presets button{flex-direction:column;gap:5px;padding:8px 3px}}
 
 /* Equipment stays beside the belt; the canvas bag has its own lower-right home. */
 .inventory-slot-row{display:flex;align-items:stretch;gap:13px;margin-top:9px}

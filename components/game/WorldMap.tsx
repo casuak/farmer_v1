@@ -2,9 +2,10 @@
 import { MapPin } from "lucide-react";
 import { shoreX,riverCenter,BUILDINGS,BRIDGES,DOCK,GARDEN,REGIONS,ROADS,regionId } from "./geography";
 import { MAP_TRANSFORM,projectMapPoint } from "./mapProjection";
+import { FOREST_ORES,ORES } from "./mining";
 
-const coast=Array.from({length:41},(_,i)=>{const z=40-i*2;return `${shoreX(z)+48},${40-z}`;}).join(" ");
-const river=Array.from({length:81},(_,i)=>{const z=40-i;return `${riverCenter(z)+48},${40-z}`;}).join(" ");
+const coast=Array.from({length:41},(_,i)=>{const z=40-i*2;return `${(shoreX(z)+48).toFixed(4)},${40-z}`;}).join(" ");
+const river=Array.from({length:81},(_,i)=>{const z=40-i;return `${(riverCenter(z)+48).toFixed(4)},${40-z}`;}).join(" ");
 export default function WorldMap({x,z,aboard,compact=false}:{x:number;z:number;aboard:boolean;compact?:boolean}){
   const player=projectMapPoint(x,z),current=regionId({x,z}),clip=compact?"mini-map-clip":"world-map-clip";
   return <div className={`world-map ${compact?"is-compact":""}`}>
@@ -26,12 +27,13 @@ export default function WorldMap({x,z,aboard,compact=false}:{x:number;z:number;a
         <circle cx="56.5" cy="28.5" r="1.6" fill="#88b9b3" stroke="#eee4cc" strokeWidth=".7"/>
         {BUILDINGS.map(b=><rect key={b.id} x={b.x+48-b.w/2} y={40-b.z-b.d/2} width={b.w} height={b.d} rx=".6" fill={b.roof} stroke="#f0e2bc" strokeWidth=".5"/>)}
         <path d={`M83.8 ${40-DOCK.z+2.6} h2.4 l-.5 1.3 h-1.4 Z`} fill="#815f43"/>
+        {FOREST_ORES.map(n=><path key={n.id} d={`M${n.x+48} ${40-n.z-1.1} l1.1 1.1 -1.1 1.1 -1.1-1.1Z`} fill={ORES[n.kind].color} stroke="#f4ebd1" strokeWidth=".3"><title>{`${ORES[n.kind].name} · 矿点`}</title></path>)}
       </g>
       {!compact&&<g className="map-region-labels" fill="#345d51" fontSize="4.4" textAnchor="middle" fontWeight="600">{REGIONS.map(region=>{const p=projectMapPoint(region.x,region.z);return <text key={region.id} x={p.x} y={p.y}>{region.label}</text>;})}</g>}
       <circle cx={player.x} cy={player.y} r={compact?2.5:2} fill="#fff7d0" stroke="#527064" strokeWidth=".7"/><circle cx={player.x} cy={player.y} r=".8" fill={aboard?"#6193a5":"#b98659"}/>
       <g transform="translate(49 -35)" fill="#536d60"><path d="M-4 4 4-4 M-1-4 H4 V1" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><text x="7" y="-6" fontSize="4.5">北</text></g>
     </svg>
     <div className="map-caption"><span><MapPin size={12}/>{REGIONS.find(r=>r.id===current)!.name}</span><small>北 ↗ · 45°</small></div>
-    {!compact&&<div className="map-directions four-districts">{REGIONS.map(region=><p key={region.id} data-current={region.id===current}><strong><i style={{background:region.color}}/>{region.label}</strong><span>{region.description}</span></p>)}<p className="map-orientation">96 × 80 格 · 三座木桥连接四区 · 地图方向与场景一致。</p></div>}
+    {!compact&&<div className="map-directions four-districts">{REGIONS.map(region=><p key={region.id} data-current={region.id===current}><strong><i style={{background:region.color}}/>{region.label}</strong><span>{region.description}</span></p>)}<p className="map-orientation">菱形为矿点 · 铜矿橙色 / 铁矿银蓝 / 晶石紫色 · 96 × 80 格。</p></div>}
   </div>;
 }

@@ -13,8 +13,8 @@ export const SLIME_SPAWNS=[[-33,10],[-30,13],[-34,15],[-17,25],[-15,28],[-19,30]
 export const REGIONS=[
   {id:"farm",name:"松溪农场",label:"农场区块",x:-29,z:-17,color:"#bfd08c",description:"农舍、菜圃与果园，留出整片开阔耕地。"},
   {id:"town",name:"松溪小镇",label:"小镇区块",x:15,z:23,color:"#d7cdb1",description:"石板广场、杂货店与茶屋，镇民沿街散步。"},
-  {id:"forest",name:"青苔森林",label:"森林区块",x:-28,z:22,color:"#82a782",description:"密林围绕宽阔林道，史莱姆栖息在林间空地。"},
-  {id:"beach",name:"贝壳沙滩",label:"海滩区块",x:16,z:-23,color:"#ebd7a8",description:"沙丘、遮阳伞与长码头，乘小船驶向大海。"},
+  {id:"forest",name:"青苔森林",label:"森林区块",x:-28,z:22,color:"#82a782",description:"沿林道寻找铜矿、铁矿与晶石；按 8 选矿镐，空地上有史莱姆。"},
+  {id:"beach",name:"贝壳沙滩",label:"海滩区块",x:16,z:-23,color:"#ebd7a8",description:"沙丘与长码头，潮角犀王守着沙地；躲开橙色预警后反击。"},
 ] as const;
 export type RegionId=typeof REGIONS[number]["id"];
 export type Road={width:number;points:readonly (readonly [number,number])[]};

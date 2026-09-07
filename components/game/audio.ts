@@ -1,8 +1,8 @@
 import type { TileKind } from "./farming";
 
-export type SoundId="grass"|"soil"|"stone"|"wood"|"sand"|"hoe"|"seeds"|"water"|"scythe"|"pickup"|"coin"|"select"|"drop"|"paddle"|"pistol"|"sword"|"slime"|"startled"|"cast"|"splash"|"bite"|"reel"|"fishCatch"|"fishEscape";
-export const SOUND_IDS:SoundId[]=["grass","soil","stone","wood","sand","hoe","seeds","water","scythe","pickup","coin","select","drop","paddle","pistol","sword","slime","startled","cast","splash","bite","reel","fishCatch","fishEscape"];
-const durations:Record<SoundId,number>={grass:.30,soil:.26,stone:.23,wood:.26,sand:.32,hoe:.34,seeds:.28,water:.70,scythe:.38,pickup:.28,coin:.35,select:.11,drop:.25,paddle:.52,pistol:.24,sword:.33,slime:.30,startled:.34,cast:.4,splash:.48,bite:.5,reel:.25,fishCatch:.65,fishEscape:.4};
+export type SoundId="grass"|"soil"|"stone"|"wood"|"sand"|"hoe"|"seeds"|"water"|"scythe"|"pickup"|"coin"|"select"|"drop"|"paddle"|"pistol"|"sword"|"slime"|"startled"|"cast"|"splash"|"bite"|"reel"|"fishCatch"|"fishEscape"|"mineSwing"|"mineHit"|"mineBreak"|"crystalHit"|"bossAlert"|"bossWindup"|"bossCharge"|"bossImpact"|"bossHurt"|"bossDefeat"|"playerHurt"|"dodge";
+export const SOUND_IDS:SoundId[]=["grass","soil","stone","wood","sand","hoe","seeds","water","scythe","pickup","coin","select","drop","paddle","pistol","sword","slime","startled","cast","splash","bite","reel","fishCatch","fishEscape","mineSwing","mineHit","mineBreak","crystalHit","bossAlert","bossWindup","bossCharge","bossImpact","bossHurt","bossDefeat","playerHurt","dodge"];
+const durations:Record<SoundId,number>={grass:.30,soil:.26,stone:.23,wood:.26,sand:.32,hoe:.34,seeds:.28,water:.70,scythe:.38,pickup:.28,coin:.35,select:.11,drop:.25,paddle:.52,pistol:.24,sword:.33,slime:.30,startled:.34,cast:.4,splash:.48,bite:.5,reel:.25,fishCatch:.65,fishEscape:.4,mineSwing:.40,mineHit:.28,mineBreak:.52,crystalHit:.55,bossAlert:.9,bossWindup:.55,bossCharge:.75,bossImpact:.4,bossHurt:.42,bossDefeat:.95,playerHurt:.38,dodge:.38};
 
 export function footstepSurface(kind:TileKind):SoundId{
   if(kind==="bridge"||kind==="dock"||kind==="floor")return "wood";
@@ -37,6 +37,8 @@ export function synthesizeSound(id:SoundId,variant:number,sampleRate:number):Flo
       value=(low*.26+body*.35)*flow;
       value+=bubbles*.035*Math.pow(Math.max(0,Math.sin(t*64)),8)*flow;
       if(id==="paddle")value+=body*.3*Math.exp(-t*24);
+    }else if(id==="dodge"){
+      value=(low*.30+body*.16)*Math.pow(Math.sin(Math.PI*u),1.8);
     }else if(id==="scythe"||id==="sword"){
       value=low*.32*Math.pow(Math.sin(Math.PI*u),2.2);
     }else if(id==="pistol"){
@@ -64,6 +66,52 @@ export function synthesizeSound(id:SoundId,variant:number,sampleRate:number):Flo
       value=low*.23*Math.pow(Math.sin(Math.PI*u),2);
     }else if(id==="select"){
       value=tone(t,620,45)*.07;
+    }else if(id==="mineSwing"){
+      // The pick cutting the air: a soft, band-passed whoosh with a swell envelope.
+      value=(low*.30+body*.20)*Math.pow(Math.sin(Math.PI*u),2.4);
+    }else if(id==="mineHit"){
+      // Metal on stone: a sharp clank transient, a metallic ring, and a body knock.
+      value=(body*.72)*Math.exp(-Math.pow((t-.02)/.045,2))+tone(t,860+220*variant,52)*.045*Math.exp(-t*26)+low*.12*Math.exp(-t*22);
+    }else if(id==="mineBreak"){
+      // Rubble: a low rumble with a periodic chatter of small stones rolling free.
+      const rubble=Math.pow(Math.max(0,Math.sin(2*Math.PI*(3.2+18*u)*t)),5);
+      value=low*.26*Math.exp(-t*5)*(.5+.5*Math.pow(Math.sin(Math.PI*u),1.5))+body*.12*rubble*Math.exp(-t*4);
+    }else if(id==="crystalHit"){
+      // A crystal tap: three descending high bells plus a faint shimmer.
+      for(let note=0;note<3;note++){const age=t-note*.11;if(age>=0)value+=tone(age,[1180,1560,1980][note]+variant*40,30)*.06*Math.min(1,age/.006);}
+      value+=tone(t,2360+variant*60,42)*.022;
+    }else if(id==="bossAlert"){
+      // A low, weighty bellow: filtered rumble + a descending growl + a soft pitch.
+      const swell=Math.pow(Math.sin(Math.PI*u),1.5);
+      const growl=Math.sin(2*Math.PI*((85+8*variant)*t-28*t*t));
+      value=low*.20*swell+tone(t,150+12*variant,4)*.12*swell+growl*.06*swell;
+    }else if(id==="bossWindup"){
+      // The pre-charge scrape: a grinding rumble with a low repeated pawing pulse.
+      const swell=Math.pow(Math.sin(Math.PI*u),1.8);
+      const scrape=Math.pow(Math.max(0,Math.sin(2*Math.PI*(11+2*variant)*t)),6);
+      value=low*.18*swell+body*.12*Math.min(1,t/.04)*swell+tone(t,220+40*variant,9)*.05*scrape;
+    }else if(id==="bossCharge"){
+      // A galloping rush: rushing air plus a fast heavy thud train.
+      const swell=Math.pow(Math.sin(Math.PI*u),1.6);
+      const thud=Math.pow(Math.max(0,Math.sin(2*Math.PI*8*t)),7);
+      value=low*.26*swell+body*.12*swell+thud*.10*Math.min(1,t/.02);
+    }else if(id==="bossImpact"){
+      // Heavy body knock from the charge hit: a dull thump, no transient snap.
+      value=body*.50*Math.exp(-Math.pow((t-.02)/.05,2))+low*.20*Math.exp(-t*15)+tone(t,95,20)*.05;
+    }else if(id==="bossHurt"){
+      // A pained grunt, quieter than the alert, with a wobbly pitch.
+      const swell=Math.pow(Math.sin(Math.PI*u),1.4);
+      const wobble=Math.sin(2*Math.PI*(9*t));
+      value=low*.18*swell+tone(t,170+30*variant,7)*.10*swell*(1-wobble*.3);
+    }else if(id==="bossDefeat"){
+      // The boss sinks: a long descending groan settling into a low rumble.
+      const swell=Math.pow(Math.sin(Math.PI*u),1.8);
+      const groan=Math.sin(2*Math.PI*(90-45*u)*t);
+      value=low*.22*swell+groan*.08*swell+tone(t,60,4)*.10*swell;
+    }else if(id==="playerHurt"){
+      // A short, startled pain cry from the farmer, high and fading.
+      const swell=Math.pow(Math.sin(Math.PI*u),1.3);
+      value=low*.14*swell+tone(t,540+60*variant,16)*.10*swell+tone(t,860+90*variant,30)*.05*swell;
     }else{
       const second=Math.max(0,t-.07),hz=id==="coin"?1175:660;
       value=tone(t,hz,20)*.055;
@@ -86,7 +134,6 @@ export class GameAudio {
   private voices=new Set<Voice>();
   private variants=new Map<SoundId,number>();
   private enabled=true;private volume=.55;private disposed=false;private unavailable=false;
-  private resuming=false;
 
   unlock(){
     if(this.disposed||this.unavailable||!this.enabled)return;
@@ -101,9 +148,11 @@ export class GameAudio {
         this.compressor.attack.value=.003;this.compressor.release.value=.12;
         this.master.connect(this.compressor);this.compressor.connect(context.destination);
       }
-      if(this.context.state!=="running"&&!this.resuming){
-        this.resuming=true;
-        void this.context.resume().catch(()=>{}).finally(()=>{this.resuming=false;});
+      if(this.context.state!=="running"){
+        // A modifier key (e.g. Shift) may be trusted but not grant activation. Its
+        // resume promise can stay pending: retry on the NEXT actual click/key,
+        // rather than letting that pending promise permanently lock all Foley.
+        void this.context.resume().catch(()=>{});
       }
     }catch{this.unavailable=true;}
   }

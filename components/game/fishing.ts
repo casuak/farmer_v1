@@ -146,7 +146,7 @@ export class FishingModel {
     this.phaseTime = 0;
     this.castPower = 0;
     this.held = true;
-    this.message = "蓄力中…按住空格，松开发射";
+    this.message = "蓄力中…按住 F，松开发射";
     return true;
   }
 

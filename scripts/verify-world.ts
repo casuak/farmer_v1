@@ -58,7 +58,7 @@ assert.deepEqual(worldToTile({x:-.01,z:-.99}),{x:-1,z:-1});
 assert(w.canWalk(SPAWN.x,SPAWN.z));
 for(const p of [{x:-26,z:-13},{x:-31.1,z:-18.2},{x:-30,z:-33.6},{x:0,z:40},{x:48,z:0},{x:riverCenter(5),z:5},{x:-4,z:1.62}])assert(!w.canWalk(p.x,p.z));
 for(const b of BRIDGES)for(let x=b.x-b.w/2;x<b.x+b.w/2;x+=.1)assert(w.canWalk(x,b.z),"The full bridge remains walkable");
-assert.equal(WALK_SPEED,6);assert.equal(SPRINT_SPEED,12);
+assert.equal(WALK_SPEED,6);assert.equal(SPRINT_SPEED,9);
 const fenceRunner={x:-30,z:-32.5};moveWithCollisions(fenceRunner,0,-5,w.canWalk);assert(fenceRunner.z>-33.3,"Fast movement cannot cross a thin fence");
 const riverRunner={x:-8,z:5};moveWithCollisions(riverRunner,8,0,w.canWalk);assert(riverRunner.x<-3,"Fast movement cannot cross water");
 const bridgeRunner={x:-8.8,z:0};moveWithCollisions(bridgeRunner,9.5,0,w.canWalk);assert(Math.abs(bridgeRunner.x-.7)<.001);
@@ -163,5 +163,5 @@ await Promise.race([
   new Promise<never>((_,reject)=>scene.onReadyTimeoutObservable.addOnce(()=>reject(new Error("Scene materials failed to become ready")))),
 ]);
 scene.render();
-console.log(JSON.stringify({result:"passed",checks:"7680 tiles, connected biomes and room entries, furniture collisions, toggle walk 2x/run 4x, distinct run animation, sailing and landing, gold and stack capacity, drop/recover, store purchases/sales/backpack, farming regression, ocean/wildlife/NPC movement and villager panic flight, full-screen blossoms, shadows, material readiness and NullEngine frames",petalCoverage,tiles:w.tiles.length,meshes:scene.meshes.length,vertices:scene.meshes.reduce((n,m)=>n+m.getTotalVertices(),0)}));
+console.log(JSON.stringify({result:"passed",checks:"7680 tiles, connected biomes and room entries, furniture collisions, toggle walk 2x/run 3x, distinct run animation, sailing and landing, gold and stack capacity, drop/recover, store purchases/sales/backpack, farming regression, ocean/wildlife/NPC movement and villager panic flight, full-screen blossoms, shadows, material readiness and NullEngine frames",petalCoverage,tiles:w.tiles.length,meshes:scene.meshes.length,vertices:scene.meshes.reduce((n,m)=>n+m.getTotalVertices(),0)}));
 scene.dispose();engine.dispose();

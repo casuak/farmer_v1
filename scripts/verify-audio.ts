@@ -21,10 +21,11 @@ export function verifyAudio(){
   const state={created:0,playing:0,starts:0,closed:0,buffers:0,hidden:false};
   const param=()=>({value:0,setTargetAtTime(value:number){this.value=value;}});
   class Node {connect(){}disconnect(){}}
+  let pendingResume=false;
   class Context {
     state="suspended";sampleRate=44100;currentTime=0;destination=new Node();
     constructor(){state.created++;}
-    resume(){this.state="running";return Promise.resolve();}
+    resume(){if(pendingResume)return new Promise<void>(()=>{});this.state="running";return Promise.resolve();}
     close(){this.state="closed";state.closed++;return Promise.resolve();}
     createGain(){return Object.assign(new Node(),{gain:param()});}
     createDynamicsCompressor(){return Object.assign(new Node(),{threshold:param(),knee:param(),ratio:param(),attack:param(),release:param()});}
@@ -44,6 +45,8 @@ export function verifyAudio(){
     sound.settings(true,.55);state.hidden=true;sound.play("grass");assert.equal(state.starts,starts,"Muted, zero-volume and background effects are silent");
     state.hidden=false;sound.play("coin");assert.equal(state.playing,1);
     sound.dispose();assert.equal(state.playing,0);assert.equal(state.closed,1);sound.unlock();sound.play("coin");assert.equal(state.created,1);
+    const retry=new GameAudio();pendingResume=true;retry.unlock();const before=state.starts;retry.play("bossAlert");assert.equal(state.starts,before);
+    pendingResume=false;retry.unlock();retry.play("bossAlert");assert.equal(state.starts,before+1,"A pending modifier-key resume cannot block the next activated input");retry.dispose();
   }finally{
     sound.dispose();
     if(oldWindow)Object.defineProperty(globalThis,"window",oldWindow);else Reflect.deleteProperty(globalThis,"window");

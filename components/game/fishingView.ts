@@ -50,7 +50,7 @@ export function createFishingView(scene:Scene,camera:Camera,canvas:HTMLCanvasEle
   const flight=document.createElement("img");flight.className="fishing-catch-flight";flight.alt="";flight.setAttribute("aria-hidden","true");flight.draggable=false;flight.hidden=true;canvas.parentElement?.appendChild(flight);
   // Small world-anchored signals, not an opaque panel over the water.
   const charge=document.createElement("div");charge.className="fishing-charge";charge.hidden=true;
-  charge.setAttribute("role","meter");charge.setAttribute("aria-label","甩竿力度，松开空格甩出");charge.setAttribute("aria-valuemin","0");charge.setAttribute("aria-valuemax","100");
+  charge.setAttribute("role","meter");charge.setAttribute("aria-label","甩竿力度，松开F甩出");charge.setAttribute("aria-valuemin","0");charge.setAttribute("aria-valuemax","100");
   const chargeTrack=document.createElement("div");chargeTrack.className="fishing-charge-track";
   const chargeFill=document.createElement("span");chargeFill.className="fishing-charge-fill";
   const chargeNeedle=document.createElement("i");chargeNeedle.className="fishing-charge-needle";
@@ -58,7 +58,7 @@ export function createFishingView(scene:Scene,camera:Camera,canvas:HTMLCanvasEle
   const chargeLabel=document.createElement("small");chargeLabel.textContent="松开甩竿";charge.appendChild(chargeLabel);canvas.parentElement?.appendChild(charge);
   const biteSignal=document.createElement("div");biteSignal.className="fishing-water-bite";biteSignal.hidden=true;biteSignal.setAttribute("aria-hidden","true");
   const exclamation=document.createElement("strong");exclamation.textContent="!";biteSignal.appendChild(exclamation);
-  const biteKey=document.createElement("small");biteKey.textContent="空格 / 点击";biteSignal.appendChild(biteKey);canvas.parentElement?.appendChild(biteSignal);
+  const biteKey=document.createElement("small");biteKey.textContent="F / 点击";biteSignal.appendChild(biteKey);canvas.parentElement?.appendChild(biteSignal);
   const announcement=document.createElement("span");announcement.className="sr-only";announcement.setAttribute("role","status");announcement.setAttribute("aria-live","assertive");canvas.parentElement?.appendChild(announcement);
   let lastPhase: FishingSnapshot["phase"]="idle",splashTime=9,splashSpot:Point={x:0,z:0},flightSlot:number|null=null;
   let shining:HTMLElement|null=null,shineTime=0;
@@ -85,7 +85,7 @@ export function createFishingView(scene:Scene,camera:Camera,canvas:HTMLCanvasEle
     if(phase!==lastPhase){
       if((phase==="waiting"||phase==="bite"||phase==="catching")&&spot){splashTime=0;splashSpot={...spot};}
       if(phase==="catching"){flightSlot=slot;if(state.fish)flight.src=FISH_SPRITES[state.fish.id];}
-      announcement.textContent=biting?"咬钩了！水面出现激烈水花和叹号，按空格或点击水面提竿。":phase==="escaped"?"鱼溜走了，可以重新蓄力甩竿。":"";
+      announcement.textContent=biting?"咬钩了！水面出现激烈水花和叹号，按F或点击水面提竿。":phase==="escaped"?"鱼溜走了，可以重新蓄力甩竿。":"";
       lastPhase=phase;
     }
     splashTime+=dt;
