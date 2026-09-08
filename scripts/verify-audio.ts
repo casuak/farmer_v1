@@ -5,7 +5,7 @@ export function verifyAudio(){
   for(const sampleRate of [44100,48000])for(const id of SOUND_IDS)for(const variant of [0,1,2]){
     const samples=synthesizeSound(id,variant,sampleRate);let peak=0,power=0;
     for(const value of samples){assert(Number.isFinite(value));peak=Math.max(peak,Math.abs(value));power+=value*value;}
-    assert(samples.length>sampleRate*.04&&samples.length<sampleRate,"Effects are short and bounded");
+    assert(samples.length>=sampleRate*.04&&samples.length<sampleRate,"Effects are short and bounded (dialogue ticks are exactly 40ms)");
     const rms=Math.sqrt(power/samples.length);
     assert(peak<.24&&rms>.003&&rms<.045,`${id}: quiet but audible, without strong peaks`);
     if(["grass","soil","stone","wood","sand"].includes(id)){

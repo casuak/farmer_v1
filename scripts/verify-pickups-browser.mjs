@@ -26,7 +26,7 @@ try{
     else{await call('Input.dispatchMouseEvent',{type:'mousePressed',...p,button:'left',clickCount:1});await call('Input.dispatchMouseEvent',{type:'mouseReleased',...p,button:'left',clickCount:1});}
   };
   const shot=async name=>{const s=await call('Page.captureScreenshot',{format:'png'});await writeFile(`.cache/${name}.png`,Buffer.from(s.data,'base64'));};
-  const drop=async(index,touch=false)=>{await click(`[data-inventory-slot="${index}"]`,touch);await wait(`document.querySelector('[data-inventory-slot="${index}"]').getAttribute('aria-pressed')==='true'`);await click('[data-drop-zone]',touch);await wait(`document.querySelector('[data-inventory-slot="${index}"]').dataset.itemId===''`);};
+  const drop=async(index,touch=false)=>{const previous=await evaluate(`JSON.parse(document.querySelector('canvas').dataset.groundItems).map(i=>i.id)`);await click(`[data-inventory-slot="${index}"]`,touch);await wait(`document.querySelector('[data-inventory-slot="${index}"]').getAttribute('aria-pressed')==='true'`);await click('[data-drop-zone]',touch);await wait(`document.querySelector('[data-inventory-slot="${index}"]').dataset.itemId===''`);await wait(`JSON.parse(document.querySelector('canvas').dataset.groundItems).some(i=>!${JSON.stringify(previous)}.includes(i.id)&&!i.airborne)`);};
   const idle=`document.querySelector('.pickup-layer').dataset.active==='0'`;
   await call('Runtime.enable');await call('Page.enable');await call('Emulation.setDeviceMetricsOverride',{width:1440,height:900,deviceScaleFactor:1,mobile:false});
   await call('Page.navigate',{url});await wait(`document.querySelector('canvas')?.dataset.renderStatus==='ready'`,60000);

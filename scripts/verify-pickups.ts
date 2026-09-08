@@ -33,7 +33,7 @@ function verifyReceipts(){
   const atomic=full.snapshot();assert(!full.add([{id:"shell",count:1000}]));assert.deepEqual(full.snapshot(),atomic);assert.deepEqual(inventoryGains(atomic.slots,full.slots),[]);
   const cropBag=new InventoryModel(),farm=new FarmModel([{x:1,z:0,kind:"dirt"}],()=>true,cropBag);farm.seedExample(1,0,24);
   const old=cropBag.snapshot().slots,harvest=farm.harvestArea({x:0,z:0},{x:2,z:0});assert(harvest.ok);
-  assert.deepEqual(inventoryGains(old,cropBag.slots),[{slot:1,id:"seeds",count:2},{slot:8,id:"turnip",count:1}],"Harvest uses the same exact gain contract");
+  assert.deepEqual(inventoryGains(old,cropBag.slots),[{slot:1,id:"seeds",count:2},{slot:9,id:"turnip",count:1}],"Harvest uses the same exact gain contract");
   console.log("Pickup receipts passed: fresh/merged/split stacks, pure positive deltas, equipment exclusions, backpack overflow, atomic full-bag failure, no repeat loot, crop gains.");
 }
 

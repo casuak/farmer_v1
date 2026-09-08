@@ -12,6 +12,6 @@ export default function MiningInspector({state}:{state:MiningSnapshot}){
       <div className="ore-durability" role="meter" aria-label="矿石剩余耐久" aria-valuemin={0} aria-valuemax={ore.maxHealth} aria-valuenow={ore.health}>{Array.from({length:ore.maxHealth},(_,i)=><i key={i} data-intact={i<ore.health} style={i<ore.health?{background:ore.color}:undefined}/>)}</div>
       <p className="ore-loot">{ore.health===0?ore.respawn>0?`约 ${ore.respawn} 秒后恢复 · 离开矿点后再来`:"走远一些，矿脉就会恢复":ore.loot}</p>
     </div>}
-    <div className="tile-action-hint" data-actionable={!!ore?.reachable&&ore.equipped&&ore.health>0}><MousePointer2 size={13}/><span>{state.active?state.holding?"长按连续挥镐 · 松开后收完这一镐；Esc 停止":"抬镐 → 敲击 → 回弹 · 按住可连续开采":ore?.hint??"按 8 选矿镐 · 长按矿石 / F连续挥镐；也可长按 E 互动按钮。"}</span></div>
+    <div className="tile-action-hint" data-actionable={!!ore?.reachable&&ore.equipped&&ore.health>0}><MousePointer2 size={13}/><span>{state.active?state.holding?"长按连续挥镐 · 松开后收完这一镐；Esc 停止":"抬镐 → 敲击 → 回弹 · 按住可连续开采":ore?.hint??"按 8 选矿镐 · 长按矿石 / F 连续挥镐，每镐弹出 1 颗矿石。"}</span></div>
   </aside>;
 }

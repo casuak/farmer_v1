@@ -1,0 +1,7 @@
+/* Generated art is already composed: do not rotate the old line-icon silhouettes. */
+.farm img.item-art{object-fit:contain;image-rendering:pixelated;transform:none;user-select:none}
+.farm .pack-slot img.item-art{width:34px;height:34px;max-width:85%;max-height:85%}
+.farm .equipment-slot img.item-art{width:29px;height:29px}
+.farm .inventory-drag-ghost img.item-art{width:42px;height:42px}
+.farm .shop-item-icon img.item-art{width:35px;height:35px}
+@media(max-width:600px){.farm .pack-slot img.item-art{width:30px;height:30px}.farm .equipment-slot img.item-art{width:25px;height:25px}}

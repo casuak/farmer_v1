@@ -229,7 +229,12 @@ kbd{font-family:inherit;font-size:12px;font-weight:700;display:inline-flex;justi
 .time-presets button:hover{background:#e5ead3;color:#526b4b}
 .clock-rate-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:15px;font-size:14px;color:#657a57}
 .clock-rate-heading strong{margin-left:7px;color:#536e4f;font-variant-numeric:tabular-nums}
-.clock-rate-heading button{display:flex;align-items:center;gap:3px;padding:5px 7px;border-radius:7px;background:#e3e9d2;font-size:12px;color:#5f7553}
+.clock-rate-heading>button{display:flex;align-items:center;gap:3px;padding:5px 7px;border-radius:7px;background:#e3e9d2;font-size:12px;color:#5f7553}
+.rate-input-wrap{display:flex;align-items:center;gap:4px}
+.rate-input-wrap input{width:58px;height:28px;padding:0 6px;border:1px solid #ccd6b9;border-radius:7px;background:#fffdf0;color:#536e4f;font-size:13px;font-variant-numeric:tabular-nums;text-align:right;box-shadow:inset 0 1px 2px #3c4d3a14}
+.rate-input-wrap input:focus{outline:2px solid #b4f8d7;outline-offset:1px;border-color:#8bad9b}
+.rate-input-wrap button{display:flex;align-items:center;gap:3px;padding:5px 7px;border-radius:7px;background:#e3e9d2;font-size:12px;color:#5f7553}
+.rate-input-wrap button:hover{background:#d3dcc0}
 .clock-rate-caption{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px;color:#8b957e;margin-top:10px}
 .clock-rate-caption strong{font-weight:500;color:#6f815f}.time-controls p{font-size:12px;color:#89947e;line-height:1.7;margin:12px 0 0}
 @media(max-width:640px){.calendar-clock time{font-size:20px}.calendar-clock small{font-size:12px;margin-top:4px}.phase-three .calendar{gap:8px;padding:10px}.phase-three .gold-wallet{padding-left:8px;gap:4px}.phase-three .gold-wallet>svg{display:none}.phase-three .gold-wallet strong{font-size:18px}.phase-three .fps-chip{gap:5px;padding-left:8px}.phase-three .fps-chip>svg{width:16px}.phase-three .fps-chip strong{font-size:18px}.phase-three .fps-chip small{font-size:10px}.time-controls{padding:14px;margin-top:16px}.time-controls-heading output{font-size:23px}.time-presets{gap:4px}.time-presets button{font-size:14px;gap:4px}.time-presets svg{width:14px}.phase-three .brand p{letter-spacing:1.3px}}

@@ -1,9 +1,25 @@
-.dodge-button{right:28px;bottom:150px;z-index:7;pointer-events:auto;display:flex;align-items:center;gap:10px;position:absolute;padding:11px 15px 15px;border-radius:14px;min-width:139px;color:#476f65;touch-action:none;user-select:none;overflow:hidden;box-shadow:0 3px 0 #31584d40,0 6px 18px #31584d20}
+.dodge-button{z-index:7;pointer-events:auto;display:flex;align-items:center;gap:10px;position:relative;padding:11px 15px 15px;border-radius:14px;min-width:139px;color:#476f65;touch-action:none;user-select:none;overflow:hidden;box-shadow:0 3px 0 #31584d40,0 6px 18px #31584d20}
 .dodge-button:disabled{opacity:.74;cursor:default}.dodge-button[data-dodge-active=true]{background:#e0f4e7;opacity:1}.dodge-button[data-dodge-ready=true]{border-color:#9abd9f}
 .dodge-icon{display:grid;place-items:center;width:32px;height:32px;border:1px solid #a9c6a8;border-radius:50%;background:#edf6de}.dodge-label{display:flex;flex-direction:column;align-items:flex-start;gap:3px}.dodge-label strong{display:flex;gap:9px;align-items:center;font-size:14px}.dodge-label small{font-size:11px;font-variant-numeric:tabular-nums}.dodge-label kbd{font-size:10px;background:#e1eacd;padding:2px 4px;border-radius:4px}.dodge-recharge{position:absolute;height:4px;bottom:0;left:0;right:0;background:#c8d8c5}.dodge-recharge i{display:block;height:100%;background:#73a57e;transition:width .08s linear}.dodge-button:focus-visible{outline:3px solid #b4f8d7;outline-offset:3px}
+/* One left-hand stack prevents the cooldown from overlapping movement hints. */
+.farm .movement-corner{position:absolute;z-index:7;left:max(28px,env(safe-area-inset-left));bottom:max(26px,env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:flex-start;gap:10px;pointer-events:none}
+.farm .movement-corner .movement-help,.farm .movement-corner .dodge-button,.farm .movement-corner .place{position:relative;inset:auto}
+.farm .movement-corner .place{margin-bottom:2px}
 .farm.has-boss .movement-help{display:none}
-@media(max-width:1000px) and (min-width:641px){.dodge-button{right:16px;bottom:160px;min-width:135px}}
-@media(max-width:640px){.dodge-button{right:15px;bottom:390px;padding:10px 12px 14px;min-width:126px;gap:8px}.dodge-label strong{font-size:13px}.dodge-label kbd{display:none}.dodge-icon{height:33px;width:33px}.farm.has-backpack .side-backpack{bottom:474px}}
-@media(max-height:650px) and (max-width:640px){.dodge-button{bottom:335px;min-width:106px;right:12px;padding:8px 9px 12px}.farm.has-backpack .side-backpack{bottom:425px}}
-@media(max-height:560px) and (min-width:641px){.dodge-button{bottom:100px;right:16px;padding:7px 12px 12px;min-width:136px}}
+@media(min-width:1101px) and (max-width:1239px){.farm .movement-corner{bottom:226px}}
+@media(pointer:coarse){.farm .movement-corner{bottom:175px}}
+@media(max-width:1100px) and (min-width:641px){.farm .movement-corner{left:16px;bottom:245px}.farm .movement-corner .movement-help{display:none}}
+@media(max-width:640px){.farm .movement-corner{left:max(16px,env(safe-area-inset-left));bottom:416px;gap:7px}.farm .movement-corner .movement-help{display:none}.dodge-button{padding:10px 12px 14px;min-width:126px;gap:8px}.dodge-label strong{font-size:13px}.dodge-label kbd{display:none}.dodge-icon{height:33px;width:33px}}
+@media(max-height:650px) and (max-width:640px){.farm .movement-corner{left:120px;bottom:335px}.dodge-button{min-width:106px;padding:8px 9px 12px}}
+@media(max-height:560px) and (min-width:641px){.farm .movement-corner{left:15px;bottom:190px}.farm .movement-corner .movement-help{display:none}.dodge-button{padding:7px 12px 12px;min-width:136px}}
+/* Run toggle sits between the left controls and the bag, never over item slots. */
+.farm .run-control{left:190px;bottom:max(26px,env(safe-area-inset-bottom));transform:none;width:auto;max-width:none;z-index:7}
+.farm .run-control .movement-toggle{min-height:38px;padding:8px;gap:5px}
+.farm .run-control .movement-toggle kbd{display:none}
+@media(min-width:1101px) and (max-width:1239px){.farm .run-control{left:28px;bottom:178px}}
+@media(pointer:coarse) and (min-width:1240px){.farm .run-control{left:190px;bottom:175px}}
+@media(max-width:1100px) and (min-width:641px){.farm .run-control{left:16px;bottom:193px}}
+@media(max-width:640px){.farm .run-control{left:16px;bottom:248px}}
+@media(max-height:650px) and (max-width:640px){.farm .run-control{left:12px;bottom:282px}}
+@media(max-height:560px) and (min-width:641px){.farm .run-control{left:170px;bottom:190px}}
 @media(prefers-reduced-motion:reduce){.dodge-recharge i{transition:none}}

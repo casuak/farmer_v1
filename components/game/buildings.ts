@@ -78,9 +78,13 @@ export function buildRooms(scene:Scene,shadow:ShadowGenerator,mat:StandardMateri
     const backMesh=solid.build(b.id+"-back-walls",scene,mat);const facadeMesh=facade.build(b.id+"-front-walls",scene,mat);
     const interior=inside.build(b.id+"-interior",scene,mat),roofMesh=roof.build(b.id+"-roof",scene,roofMat);
     for(const m of [backMesh,facadeMesh,interior,roofMesh]){shadow.addShadowCaster(m);m.isPickable=true;m.metadata={tileKind:"building"};}
-    occluders.push({mesh:backMesh,x,z,radius:w/2+.2,bottom:.15,top:2.85,phase:0});
-    occluders.push({mesh:roofMesh,x,z,radius:w/2+.6,bottom:2.8,top:5.4,phase:0,room:room.id,insideOpacity:.025});
-    occluders.push({mesh:facadeMesh,x,z,radius:w/2+.2,bottom:.15,top:2.95,phase:0,room:room.id,insideOpacity:.11});
+    // Keep the far L-shaped wall solid indoors: its combined AABB includes empty
+    // room space and would otherwise falsely trigger camera occlusion fading.
+    occluders.push({mesh:backMesh,x,z,radius:w/2+.2,bottom:.15,top:2.85,phase:0,room:room.id,insideOpacity:1});
+    // Thick, overlapping voxel boxes cannot form a clean translucent cutaway.
+    // Hide the near wall/roof exactly, retaining geometry for physical light blocking.
+    occluders.push({mesh:roofMesh,x,z,radius:w/2+.6,bottom:2.8,top:5.4,phase:0,room:room.id,insideOpacity:0});
+    occluders.push({mesh:facadeMesh,x,z,radius:w/2+.2,bottom:.15,top:2.95,phase:0,room:room.id,insideOpacity:0});
     const lamp=new PointLight(b.id+"-warm-interior",new Vector3(x,2.3,z),scene);lamp.diffuse=Color3.FromHexString("#ffe2a8");lamp.intensity=.38;lamp.range=9;lamp.includedOnlyMeshes=[floorMesh,interior,backMesh,facadeMesh];
     return room;
   });

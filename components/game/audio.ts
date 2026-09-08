@@ -1,8 +1,8 @@
 import type { TileKind } from "./farming";
 
-export type SoundId="grass"|"soil"|"stone"|"wood"|"sand"|"hoe"|"seeds"|"water"|"scythe"|"pickup"|"coin"|"select"|"drop"|"paddle"|"pistol"|"sword"|"slime"|"startled"|"cast"|"splash"|"bite"|"reel"|"fishCatch"|"fishEscape"|"mineSwing"|"mineHit"|"mineBreak"|"crystalHit"|"bossAlert"|"bossWindup"|"bossCharge"|"bossImpact"|"bossHurt"|"bossDefeat"|"playerHurt"|"dodge";
-export const SOUND_IDS:SoundId[]=["grass","soil","stone","wood","sand","hoe","seeds","water","scythe","pickup","coin","select","drop","paddle","pistol","sword","slime","startled","cast","splash","bite","reel","fishCatch","fishEscape","mineSwing","mineHit","mineBreak","crystalHit","bossAlert","bossWindup","bossCharge","bossImpact","bossHurt","bossDefeat","playerHurt","dodge"];
-const durations:Record<SoundId,number>={grass:.30,soil:.26,stone:.23,wood:.26,sand:.32,hoe:.34,seeds:.28,water:.70,scythe:.38,pickup:.28,coin:.35,select:.11,drop:.25,paddle:.52,pistol:.24,sword:.33,slime:.30,startled:.34,cast:.4,splash:.48,bite:.5,reel:.25,fishCatch:.65,fishEscape:.4,mineSwing:.40,mineHit:.28,mineBreak:.52,crystalHit:.55,bossAlert:.9,bossWindup:.55,bossCharge:.75,bossImpact:.4,bossHurt:.42,bossDefeat:.95,playerHurt:.38,dodge:.38};
+export type SoundId="grass"|"soil"|"stone"|"wood"|"sand"|"hoe"|"seeds"|"water"|"scythe"|"pickup"|"coin"|"select"|"drop"|"paddle"|"pistol"|"sword"|"slime"|"startled"|"cast"|"splash"|"bite"|"reel"|"fishCatch"|"fishEscape"|"mineSwing"|"mineHit"|"mineBreak"|"crystalHit"|"bossAlert"|"bossWindup"|"bossCharge"|"bossImpact"|"bossHurt"|"bossDefeat"|"playerHurt"|"dodge"|"dialogueTick";
+export const SOUND_IDS:SoundId[]=["grass","soil","stone","wood","sand","hoe","seeds","water","scythe","pickup","coin","select","drop","paddle","pistol","sword","slime","startled","cast","splash","bite","reel","fishCatch","fishEscape","mineSwing","mineHit","mineBreak","crystalHit","bossAlert","bossWindup","bossCharge","bossImpact","bossHurt","bossDefeat","playerHurt","dodge","dialogueTick"];
+const durations:Record<SoundId,number>={grass:.30,soil:.26,stone:.23,wood:.26,sand:.32,hoe:.34,seeds:.28,water:.70,scythe:.38,pickup:.28,coin:.35,select:.11,drop:.25,paddle:.52,pistol:.24,sword:.33,slime:.30,startled:.34,cast:.4,splash:.48,bite:.5,reel:.25,fishCatch:.65,fishEscape:.4,mineSwing:.40,mineHit:.28,mineBreak:.52,crystalHit:.55,bossAlert:.9,bossWindup:.55,bossCharge:.75,bossImpact:.4,bossHurt:.42,bossDefeat:.95,playerHurt:.38,dodge:.38,dialogueTick:.04};
 
 export function footstepSurface(kind:TileKind):SoundId{
   if(kind==="bridge"||kind==="dock"||kind==="floor")return "wood";
@@ -64,6 +64,9 @@ export function synthesizeSound(id:SoundId,variant:number,sampleRate:number):Flo
       value=Math.sin(2*Math.PI*(600*t-380*t*t))*.10*Math.pow(Math.sin(Math.PI*u),2);
     }else if(id==="seeds"){
       value=low*.23*Math.pow(Math.sin(Math.PI*u),2);
+    }else if(id==="dialogueTick"){
+      // Tiny rounded wooden syllable; three timbres, no sharp click or long ring.
+      value=(tone(t,440+variant*65,80)*.16+body*.10)*Math.pow(Math.sin(Math.PI*u),1.5);
     }else if(id==="select"){
       value=tone(t,620,45)*.07;
     }else if(id==="mineSwing"){
@@ -124,7 +127,7 @@ export function synthesizeSound(id:SoundId,variant:number,sampleRate:number):Flo
   return samples;
 }
 
-type Voice={source:AudioBufferSourceNode;gain:GainNode};
+type Voice={id:SoundId;source:AudioBufferSourceNode;gain:GainNode};
 /** Audio is unlocked by a real input gesture and never queues sounds while locked. */
 export class GameAudio {
   private context:AudioContext|null=null;
@@ -175,7 +178,7 @@ export class GameAudio {
       }
       // Bound simultaneous voices; even rapid inventory input cannot pile up.
       if(this.voices.size>=10)this.release(this.voices.values().next().value!);
-      const source=context.createBufferSource(),level=context.createGain(),voice={source,gain:level};
+      const source=context.createBufferSource(),level=context.createGain(),voice={id,source,gain:level};
       source.buffer=buffer;source.playbackRate.value=.96+Math.random()*.08;
       level.gain.value=gain;source.connect(level);level.connect(this.master!);
       this.voices.add(voice);source.onended=()=>{source.disconnect();level.disconnect();this.voices.delete(voice);};
@@ -185,6 +188,7 @@ export class GameAudio {
 
   step(kind:TileKind,running:boolean){this.play(footstepSurface(kind),running?.80:.65);}
   private release(voice:Voice){voice.source.onended=null;try{voice.source.stop();}catch{}voice.source.disconnect();voice.gain.disconnect();this.voices.delete(voice);}
+  stopSound(id:SoundId){for(const voice of this.voices)if(voice.id===id)this.release(voice);}
   stop(){for(const voice of this.voices)this.release(voice);}
   dispose(){
     if(this.disposed)return;this.disposed=true;this.stop();this.buffers.clear();

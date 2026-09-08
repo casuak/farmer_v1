@@ -1,32 +1,16 @@
 "use client";
 import { useRef,useState,type ReactNode,type PointerEvent } from "react";
-import { Sprout,Carrot,Logs,Shell,Backpack,Shirt,Sword,Grip,ArrowDownToLine,ArrowLeftRight,MousePointer2,Pickaxe } from "lucide-react";
+import { Backpack,Grip,ArrowDownToLine,ArrowLeftRight,MousePointer2 } from "lucide-react";
 import { ITEMS,MAIN_SLOTS,BASE_SLOTS,EQUIPMENT,type InventorySnapshot,type ItemId,type Stack } from "./inventory";
-import { isFishId,FISH_SPRITES } from "./fishSprites";
+import { ITEM_SPRITES } from "./itemSprites";
+import "./itemSprites.css";
 import "./pickup.css";
 
-const ICONS={seeds:Sprout,turnip:Carrot,wood:Logs,shell:Shell,backpack:Backpack,shirt:Shirt,sword:Sword,pickaxe:Pickaxe};
 export function ItemIcon({id,className="",template=false}:{id:ItemId;className?:string;template?:boolean}){
   const cls=template?"pickup-source-art":`item-art item-${id} ${className}`;
-  if(isFishId(id)){
-    // Original tiny local SVG pixels must stay identical to the in-world texture.
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img className={cls} src={FISH_SPRITES[id]} alt="" aria-hidden="true" draggable={false}/>;
-  }
-  if(id==="fishingRod"){
-    return <svg className={cls} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{color:ITEMS[id].color}}>
-      <path d="M5 19 18 7"/><path d="M18 7 21 4"/><path d="M5 19 3 16"/><circle cx="9" cy="16" r="1.9"/><path d="M8 14.6a1.9 1.9 0 0 1 .7-1.3"/><path d="M19 7c3 2 2 7-2 9"/>
-    </svg>;
-  }
-  const props={className:cls,"aria-hidden":true as const,style:{color:ITEMS[id].color}};
-  if(id in ICONS){const Icon=ICONS[id as keyof typeof ICONS];return <Icon {...props}/>;}
-  if(id==="stone")return <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8 9 4h7l3 4v7l-3 5H9l-3-5Z"/><path d="M9 4l1 5 4-3 4 2 2 3"/><path d="M10 15h5l-1 4h-3Z" fill="#7c8288" fillOpacity=".55"/></svg>;
-  if(id==="copperOre")return <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8 9 4h7l3 4v7l-3 5H9l-3-5Z"/><path d="M9 4l1 5 4-3 4 2 2 3"/><path fill="#c07f52" stroke="#8f5c34" strokeWidth="1" d="M8.5 12h2.5v2.5H8.5Z"/><path fill="#d98b52" stroke="#8f5c34" strokeWidth="1" d="M13.5 14.5h2.5V17h-2.5Z"/></svg>;
-  if(id==="ironOre")return <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8 9 4h7l3 4v7l-3 5H9l-3-5Z"/><path d="M9 4l1 5 4-3 4 2 2 3"/><path stroke="#4a5b74" strokeWidth="1.4" d="M8.5 9.5l3 1-1.5 4L12 16M13 11.5l2-1.5 2 3.5M10.5 14l2-1"/></svg>;
-  if(id==="crystal")return <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path fill="currentColor" fillOpacity=".55" d="M11.5 2.5 14 9l-1.4 11-4-2 1-9Z"/><path d="M11.5 2.5 14 9l-1.4 11-4-2 1-9Z"/><path d="M17.5 6l1.8 5.5-1.6 6-4.4-1.4"/><path d="M6 11l-1.4 4.6 1.6 4 4-1.2"/></svg>;
-  return <svg {...props} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    {id==="water"?<><path d="M4 10h10v10H4zM5 9V6a3 3 0 0 1 6 0v3M4 12H2v5h2M14 14l5-5 2 2-7 7M18 8l4 4"/><path d="m20 15 1 1m-3 1 1 1m2-5 1 1"/></>:id==="scythe"?<><path d="m6 22 7-17M10 13l3 1M12 6c3-4 8-3 10 3-4-2-7-1-11 2"/></>:id==="hoe"?<><path d="m7 22 6-16M5 4l13 4 3-2-13-4Z"/></>:id==="hat"?<><path d="M7 13 9 5h6l2 8M7 10h10"/><ellipse cx="12" cy="15" rx="10" ry="4"/></>:<><path d="M3 5h17v6h-9l-3 9H3l3-9H3ZM11 11v4h3l2-4M17 5V3M7 5V3"/></>}
-  </svg>;
+  // The generated transparent PNG is shared with the Babylon ground-drop sprite.
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img className={cls} src={ITEM_SPRITES[id]} width={128} height={128} alt="" aria-hidden="true" draggable={false}/>;
 }
 type Props={bag:InventorySnapshot;inspector:ReactNode;onSelect:(index:number)=>void;onMove:(from:number,to:number)=>void;onDrop:(index:number)=>void;locked?:boolean;lockKind?:"fishing"|"mining"};
 type Drag={index:number;item:Stack;x:number;y:number};

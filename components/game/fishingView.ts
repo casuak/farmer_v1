@@ -1,8 +1,7 @@
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
-import { RawTexture } from "@babylonjs/core/Materials/Textures/rawTexture";
-import { Texture } from "@babylonjs/core/Materials/Textures/texture";
+import { itemSpriteMaterial } from "./itemSpriteMaterial";
 import { Color3 } from "@babylonjs/core/Maths/math.color";
 import { Matrix,Vector3 } from "@babylonjs/core/Maths/math.vector";
 import type { Scene } from "@babylonjs/core/scene";
@@ -11,7 +10,7 @@ import type { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import type { Point } from "./farming";
 import type { FishId } from "./inventory";
 import { FISHING,type FishingSnapshot,type FishingSpot } from "./fishing";
-import { createFishPixels,FISH_SPRITES } from "./fishSprites";
+import { FISH_SPRITES } from "./fishSprites";
 import { seaHeight } from "./geography";
 import { Voxels,voxelMaterial } from "./voxel";
 
@@ -39,14 +38,8 @@ export function createFishingView(scene:Scene,camera:Camera,canvas:HTMLCanvasEle
   const splashMaterial=new StandardMaterial("fishing-splash",scene);splashMaterial.disableLighting=true;splashMaterial.emissiveColor=Color3.FromHexString("#d3f4ee");
   const droplets=Array.from({length:24},(_,i)=>{const m=MeshBuilder.CreateBox("fishing-droplet-"+i,{size:.065},scene);m.material=splashMaterial;m.isPickable=false;m.setEnabled(false);return m;});
   const materials=new Map<FishId,StandardMaterial>();
-  for(const id of Object.keys(FISH_SPRITES) as FishId[]){
-    const pixels=createFishPixels(id),texture=RawTexture.CreateRGBATexture(pixels.data,pixels.width,pixels.height,scene,false,true,Texture.NEAREST_SAMPLINGMODE);
-    texture.name="caught-fish-texture-"+id;texture.hasAlpha=true;texture.wrapU=texture.wrapV=Texture.CLAMP_ADDRESSMODE;
-    const material=new StandardMaterial("caught-fish-material-"+id,scene);material.diffuseTexture=texture;material.useAlphaFromDiffuseTexture=true;
-    material.disableLighting=true;material.emissiveColor=Color3.White();material.specularColor=Color3.Black();material.backFaceCulling=false;material.transparencyMode=StandardMaterial.MATERIAL_ALPHATEST;
-    materials.set(id,material);
-  }
-  const fish=MeshBuilder.CreatePlane("caught-fish-sprite",{width:1.38,height:.92},scene);fish.billboardMode=Mesh.BILLBOARDMODE_ALL;fish.isPickable=false;fish.setEnabled(false);
+  for(const id of Object.keys(FISH_SPRITES) as FishId[])materials.set(id,itemSpriteMaterial(scene,id));
+  const fish=MeshBuilder.CreatePlane("caught-fish-sprite",{size:1.38},scene);fish.billboardMode=Mesh.BILLBOARDMODE_ALL;fish.isPickable=false;fish.setEnabled(false);
   const flight=document.createElement("img");flight.className="fishing-catch-flight";flight.alt="";flight.setAttribute("aria-hidden","true");flight.draggable=false;flight.hidden=true;canvas.parentElement?.appendChild(flight);
   // Small world-anchored signals, not an opaque panel over the water.
   const charge=document.createElement("div");charge.className="fishing-charge";charge.hidden=true;
@@ -112,11 +105,11 @@ export function createFishingView(scene:Scene,camera:Camera,canvas:HTMLCanvasEle
       fish.material=materials.get(state.fish.id)!;
       fish.position.copyFrom(catchJumpPosition(spot,player,state.phaseTime/FISHING.jumpSeconds,!motion));
       if(state.phaseTime>=FISHING.jumpSeconds){
-        const jumpEnd=catchJumpPosition(spot,player,1,!motion),from=project(jumpEnd),top=project(jumpEnd.add(camera.getDirection(Vector3.Up()).scale(.46)));
+        const jumpEnd=catchJumpPosition(spot,player,1,!motion),from=project(jumpEnd),top=project(jumpEnd.add(camera.getDirection(Vector3.Up()).scale(.69)));
         const b=canvas.getBoundingClientRect(),slotElement=flightSlot===null?null:canvas.parentElement?.querySelector<HTMLElement>(`[data-inventory-slot="${flightSlot}"]`),rect=slotElement?.getBoundingClientRect();
         const to=rect?{x:rect.left+rect.width/2-b.left,y:rect.top+rect.height/2-b.top}:{x:b.width/2,y:b.height-65};
         const u=clamp((state.phaseTime-FISHING.jumpSeconds)/FISHING.flySeconds),p=catchFlyPosition(from,to,u,!motion),height=Math.max(20,Math.abs(top.y-from.y)*2);
-        flight.hidden=false;flight.style.width=`${height*1.5}px`;flight.style.height=`${height}px`;flight.style.left=`${p.x}px`;flight.style.top=`${p.y}px`;
+        flight.hidden=false;flight.style.width=`${height}px`;flight.style.height=`${height}px`;flight.style.left=`${p.x}px`;flight.style.top=`${p.y}px`;
         flight.style.opacity=String(p.opacity);flight.style.transform=`translate(-50%,-50%) scale(${p.scale}) rotate(${motion?-Math.sin(u*Math.PI)*22:0}deg)`;
       }
     }

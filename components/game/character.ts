@@ -8,6 +8,7 @@ import { locomotionPose } from "./movement";
 import type { HandItem,InventorySnapshot } from "./inventory";
 import { MINING_SWING_DURATION,PICKAXE_ID,MINING_HOLD_POSE,miningPose } from "./miningMotion";
 import { dodgePose } from "./dodge";
+import { FLASHLIGHT } from "./flashlight";
 
 export function createFarmer(scene:Scene,shadow:ShadowGenerator) {
   const avatar=new TransformNode("player",scene);
@@ -54,7 +55,7 @@ export function createFarmer(scene:Scene,shadow:ShadowGenerator) {
   function animate(time:number,dt:number,moving:boolean,running:boolean,aboard:boolean,action:number,motion:boolean,held:HandItem|null=null,aim:{movementYaw:number}|null=null){
     rollRig.rotation.setAll(0);rollRig.position.setAll(0);body.scaling.setAll(1);
     amount+=((moving?1:0)-amount)*(1-Math.exp(-15*dt));
-    const aiming=held==="pistol"&&!aboard&&(!!aim||action>0);
+    const aiming=(held==="pistol"&&(!!aim||action>0)||held==="flashlight"&&!!aim)&&!aboard;
     aimWeight+=((aiming?1:0)-aimWeight)*(1-Math.exp(-22*dt));
     const previousStep=Math.floor(phase/Math.PI);
     if(moving)phase+=dt*(running?16:10);
@@ -76,6 +77,12 @@ export function createFarmer(scene:Scene,shadow:ShadowGenerator) {
       limbs[3].rotation.z=-body.rotation.z*aimWeight;
       elbows[1].rotation.x+=(.20-elbows[1].rotation.x)*aimWeight;
     }
+    if(held==="flashlight"&&!aboard){
+      // A firm one-handed carry, including mobile/no-cursor idle. Compensate body
+      // lean so the lamp's local -Y axis remains forward and slightly down.
+      limbs[3].rotation.set(FLASHLIGHT.shoulderX-body.rotation.x,0,-body.rotation.z);
+      elbows[1].rotation.x=FLASHLIGHT.elbowX;
+    }
     if(held==="fishingRod"&&!aboard){limbs[3].rotation.x=1.75;elbows[1].rotation.x=.40;}
     if(aboard){body.position.y=-.12;limbs[2].rotation.x=limbs[3].rotation.x=.40+(moving?Math.sin(time*5)*.30:0);}
     if(held==="sword"&&!aboard){
@@ -96,7 +103,7 @@ export function createFarmer(scene:Scene,shadow:ShadowGenerator) {
         limbs[0].rotation.x=-.07*brace;limbs[1].rotation.x=.09*brace;limbs[0].rotation.z=-.035*brace;limbs[1].rotation.z=.035*brace;
       }
     }
-    if(action>0&&!aboard&&held!=="sword"){
+    if(action>0&&!aboard&&held!=="sword"&&held!=="flashlight"){
       const duration=held===PICKAXE_ID?MINING_SWING_DURATION:held==="pistol"?.22:.43;
       const progress=Math.max(0,Math.min(1,1-action/duration)),swing=Math.sin(progress*Math.PI);
       if(held===PICKAXE_ID){

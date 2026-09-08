@@ -1,6 +1,6 @@
 export type FishId="carp"|"perch"|"sardine"|"redSnapper";
-export type ItemId="hoe"|"seeds"|"water"|"scythe"|"turnip"|"wood"|"shell"|"hat"|"shirt"|"backpack"|"pistol"|"sword"|"fishingRod"|"pickaxe"|"stone"|"copperOre"|"ironOre"|"crystal"|FishId;
-export type HandItem="hoe"|"seeds"|"water"|"scythe"|"pistol"|"sword"|"fishingRod"|"pickaxe";
+export type ItemId="hoe"|"seeds"|"water"|"scythe"|"turnip"|"wood"|"shell"|"hat"|"shirt"|"backpack"|"pistol"|"sword"|"fishingRod"|"pickaxe"|"stone"|"copperOre"|"ironOre"|"crystal"|"flashlight"|FishId;
+export type HandItem="hoe"|"seeds"|"water"|"scythe"|"pistol"|"sword"|"fishingRod"|"pickaxe"|"flashlight";
 export type Stack={id:ItemId;count:number};
 export type InventorySnapshot={slots:(Stack|null)[];selected:number;gold:number;backpack:boolean};
 export const MAIN_SLOTS=12,BASE_SLOTS=15,BACKPACK_SLOTS=8,BACKPACK_PRICE=120;
@@ -30,6 +30,7 @@ export const ITEMS:Record<ItemId,{name:string;description:string;max:number;sell
   copperOre:{name:"铜矿石",description:"嵌着橙铜块的矿石，可出售",max:30,sell:9,buy:0,color:"#c07f52"},
   ironOre:{name:"铁矿石",description:"闪着蓝灰铁纹的矿石，可出售",max:30,sell:14,buy:0,color:"#7f8ea8"},
   crystal:{name:"晶石",description:"泛着柔紫光泽的晶簇，可出售",max:20,sell:28,buy:0,color:"#b39be5"},
+  flashlight:{name:"手电筒",description:"按 9 选中 · 手持自动照亮前方，鼠标转向；切换工具收起",max:1,sell:18,buy:50,color:"#e4bc65"},
 };
 export type InventoryResult={ok:boolean;message:string};
 export type InventoryGain={slot:number;id:ItemId;count:number};
@@ -48,9 +49,9 @@ const clone=(slots:(Stack|null)[])=>slots.map(s=>s?{...s}:null);
 export class InventoryModel {
   slots:(Stack|null)[]=Array.from({length:BASE_SLOTS},()=>null);
   selected=0;gold=200;
-  constructor(){this.slots[0]={id:"hoe",count:1};this.slots[1]={id:"seeds",count:24};this.slots[2]={id:"water",count:1};this.slots[3]={id:"scythe",count:1};this.slots[4]={id:"pistol",count:1};this.slots[5]={id:"sword",count:1};this.slots[6]={id:"fishingRod",count:1};this.slots[7]={id:"pickaxe",count:1};this.slots[12]={id:"hat",count:1};this.slots[13]={id:"shirt",count:1};}
+  constructor(){this.slots[0]={id:"hoe",count:1};this.slots[1]={id:"seeds",count:24};this.slots[2]={id:"water",count:1};this.slots[3]={id:"scythe",count:1};this.slots[4]={id:"pistol",count:1};this.slots[5]={id:"sword",count:1};this.slots[6]={id:"fishingRod",count:1};this.slots[7]={id:"pickaxe",count:1};this.slots[8]={id:"flashlight",count:1};this.slots[12]={id:"hat",count:1};this.slots[13]={id:"shirt",count:1};}
   get backpack(){return this.slots[14]?.id==="backpack";}
-  get hand():HandItem|null{const id=this.slots[this.selected]?.id;return id&&["hoe","seeds","water","scythe","pistol","sword","fishingRod","pickaxe"].includes(id)?id as HandItem:null;}
+  get hand():HandItem|null{const id=this.slots[this.selected]?.id;return id&&["hoe","seeds","water","scythe","pistol","sword","fishingRod","pickaxe","flashlight"].includes(id)?id as HandItem:null;}
   get backpackOccupied(){return this.slots.slice(BASE_SLOTS).some(Boolean);}
   private resize(){const length=BASE_SLOTS+(this.backpack?BACKPACK_SLOTS:0);while(this.slots.length<length)this.slots.push(null);this.slots.length=length;if(this.selected>=length)this.selected=0;}
   snapshot():InventorySnapshot{return {slots:clone(this.slots),selected:this.selected,gold:this.gold,backpack:this.backpack};}

@@ -144,11 +144,16 @@ function verifyModelLogic() {
     assert.equal(node.health, expected, `${kind} starts at ${expected} hp`);
     let hits = 0;
     let last: MiningImpact | null = null;
-    while (node.health > 0) { hits++; last = swing(m, node.id, player); assert(last.ok, `${kind} swing lands`); }
+    const total = new Map<string, number>();
+    while (node.health > 0) {
+      hits++; last = swing(m, node.id, player); assert(last.ok, `${kind} swing lands`);
+      const mineral = ORES[kind].loot.find(s => s.id !== "stone")!;
+      assert.deepEqual(last.loot, [{ id: mineral.id, count: 1 }, ...(last.broken ? ORES[kind].loot.filter(s => s.id === "stone") : [])], `${kind} hit ${hits} gives one mineral; stone only on break`);
+      for (const s of last.loot) total.set(s.id, (total.get(s.id) ?? 0) + s.count);
+    }
     assert.equal(hits, expected, `${kind} breaks after exactly ${expected} hits`);
     assert(last!.broken, `${kind} breaks on its last hit`);
-    assert.equal(last!.loot.length, ORES[kind].loot.length, `${kind} loots on the break`);
-    for (const s of ORES[kind].loot) assert(last!.loot.some(l => l.id === s.id && l.count === s.count), `${kind} loot includes ${s.id} x${s.count}`);
+    assert.deepEqual(Object.fromEntries(total), Object.fromEntries(ORES[kind].loot.map(s => [s.id, s.count])), `${kind} cumulative loot matches its total yield`);
   }
 
   // --- no damage before MINING_IMPACT_TIME; exactly one damage at contact ---
@@ -179,11 +184,13 @@ function verifyModelLogic() {
     assert(!m.begin(node.id, player, "pickaxe").ok, "still mid-swing after impact");
     m.update(MINING_SWING_DURATION + 0.001, player, "pickaxe");
     assert.equal(m.active, false);
-    swing(m, node.id, player);
+    const second = swing(m, node.id, player);
     const last = swing(m, node.id, player);
     assert(last.broken, "copper breaks on the third hit");
-    assert.equal(last.loot.length, 2, "copper loots once on the break");
-    for (const s of ORES.copper.loot) assert(last.loot.some(l => l.id === s.id && l.count === s.count), "copper loot stacks are exact");
+    assert.deepEqual(impact.loot, [{ id: "copperOre", count: 1 }]);
+    assert.deepEqual(second.loot, [{ id: "copperOre", count: 1 }]);
+    assert.deepEqual(last.loot, [{ id: "copperOre", count: 1 }, { id: "stone", count: 2 }], "final hit gives one ore and the original stone byproduct");
+    for (const s of ORES.copper.loot) assert.equal([impact, second, last].flatMap(hit => hit.loot).filter(l => l.id === s.id).reduce((count, l) => count + l.count, 0), s.count, "cumulative copper loot is exact");
     assert(!m.begin(node.id, player, "pickaxe").ok, "depleted deposit refuses re-mining");
     assert.equal(node.health, 0, "no extra damage once depleted");
   }

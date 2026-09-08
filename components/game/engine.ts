@@ -18,6 +18,7 @@ import { createPickupView } from "./pickupView";
 import { BoatModel,BOAT_SEAT_HEIGHT } from "./boat";
 import { createBoatView } from "./ocean";
 import { GroundItems,createGroundItemView } from "./droppedItems";
+import { INVENTORY_DROP } from "./groundDropMotion";
 import { regionName,FARM_SPAWN,GARDEN } from "./geography";
 import { RenderGuard } from "./renderGuard";
 import { DayNightClock,type ClockSnapshot } from "./dayNight";
@@ -38,12 +39,17 @@ import { createPlayerHitView } from "./playerHitView";
 import { SWORD,SwordSwing } from "./swordMotion";
 import { createSwordTrail } from "./swordTrail";
 import { DodgeModel,type DodgeSnapshot } from "./dodge";
+import { createFlashlight } from "./flashlight";
+import { DialogueModel,type DialogueSnapshot,type DialogueSpeaker } from "./dialogue";
+import { dialogueFor } from "./dialogueContent";
+import { VILLAGER_HEALTH } from "./npcs";
+import { createRoomCutawayShadows,cutawayVisibility } from "./roomCutaway";
 
 export type GameSettings={zoom:number;shadows:boolean;motion:boolean;occlusion:boolean;grid:boolean;bloom:boolean;timeScale:number;sound:boolean;volume:number;music:boolean;musicVolume:number};
 export type Interaction={kind:"pickup"|"boat"|"shop"|"talk"|"mine";label:string};
-export type GameStatus={x:number;z:number;location:string;moving:boolean;running:boolean;aboard:boolean;fps:number;bag:InventorySnapshot;interaction:Interaction|null;clock:ClockSnapshot;bloomAvailable:boolean;fishing:FishingSnapshot;mining:MiningSnapshot;boss:BossSnapshot;dodge:DodgeSnapshot};
+export type GameStatus={x:number;z:number;location:string;moving:boolean;running:boolean;aboard:boolean;fps:number;bag:InventorySnapshot;interaction:Interaction|null;clock:ClockSnapshot;bloomAvailable:boolean;fishing:FishingSnapshot;mining:MiningSnapshot;boss:BossSnapshot;dodge:DodgeSnapshot;dialogueActive:boolean;talkTarget:{name:string;color:string}|null};
 export const SPAWN=FARM_SPAWN;
-export type GameApi={dispose:()=>void;settings:(s:GameSettings)=>void;pause:(p:boolean)=>void;reset:()=>void;key:(k:string,down:boolean)=>void;toggleRun:()=>void;interact:()=>void;dodge:()=>void;miningPress:()=>boolean;miningRelease:()=>void;selectSlot:(index:number)=>void;moveItem:(from:number,to:number)=>void;dropItem:(index:number)=>void;buyItem:(id:ItemId)=>void;sellItem:(index:number,all:boolean)=>void;buyBackpack:()=>void;setTime:(hour:number)=>void;fishingPress:()=>void;fishingRelease:()=>void;cancelFishing:()=>void;fishingState:()=>FishingSnapshot};
+export type GameApi={dispose:()=>void;settings:(s:GameSettings)=>void;pause:(p:boolean)=>void;reset:()=>void;key:(k:string,down:boolean)=>void;toggleRun:()=>void;interact:()=>void;dodge:()=>void;miningPress:()=>boolean;miningRelease:()=>void;selectSlot:(index:number)=>void;moveItem:(from:number,to:number)=>void;dropItem:(index:number)=>void;buyItem:(id:ItemId)=>void;sellItem:(index:number,all:boolean)=>void;buyBackpack:()=>void;setTime:(hour:number)=>void;fishingPress:()=>void;fishingRelease:()=>void;cancelFishing:()=>void;fishingState:()=>FishingSnapshot;dialogueAdvance:()=>void;dialogueChoose:(id:string)=>void;dialogueClose:()=>void;talkNearby:()=>void};
 
 export function createFarmCamera(scene:Scene) {
   const camera=new ArcRotateCamera("fixed-45-orthographic",-Math.PI/4,Math.PI/4,65,new Vector3(SPAWN.x,0,SPAWN.z+1.4),scene);
@@ -52,12 +58,13 @@ export function createFarmCamera(scene:Scene) {
   camera.overrideCloneAlphaBetaRadius=true;camera.inputs.clear();scene.activeCamera=camera;return camera;
 }
 
-export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s:GameStatus)=>void,onError:(s:string)=>void,events:{hover:(info:TileInfo|null)=>void;action:(result:InventoryResult)=>void;shop:()=>void}):GameApi {
+export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s:GameStatus)=>void,onError:(s:string)=>void,events:{hover:(info:TileInfo|null)=>void;action:(result:InventoryResult)=>void;shop:()=>void;dialogue?:(snapshot:DialogueSnapshot)=>void}):GameApi {
   const engine=new Engine(canvas,true,{preserveDrawingBuffer:false,stencil:true,powerPreference:"high-performance"},false);
   engine.setHardwareScalingLevel(1/Math.min(window.devicePixelRatio||1,1.6));
   const scene=new Scene(engine);scene.skipPointerMovePicking=true;scene.skipPointerDownPicking=true;scene.skipPointerUpPicking=true;
   const camera=createFarmCamera(scene),lighting=createSpringLighting(scene,camera),shadow=lighting.shadow;
   const world=buildWorld(scene,shadow),farmer=createFarmer(scene,shadow),avatar=farmer.root,body=farmer.body;
+  const roomCutaway=createRoomCutawayShadows(shadow,world.occluders);
   const mining=world.mining,miningView=createMiningView(scene,shadow,mining),miningHold=new MiningHold();
   let hoveredOre:string|null=null;
   const combat=createCombat(scene,shadow,world.canWalk,world.clearReach,world.residents.residents,villagerHurt),actionEffects=createActionEffects(scene);
@@ -77,6 +84,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   for(const [dx,dz,age] of [[3,7,0],[4,7,12],[3,5,24],[4,5,6]])farm.seedExample(GARDEN.x+dx,GARDEN.z+dz,age);
   const farmView=createFarmView(scene,shadow,world.tiles,world.clearTile);for(const tile of farm.tiles.values())if(tile.tilled)farmView.updateTile(tile);
   const heldTools=createHeldTools(scene,farmer.hand,shadow);heldTools.select(bag.hand);
+  const flashlight=createFlashlight(scene,heldTools.flashlightTip,shadow.getShadowMap()?.renderList??[]);
   const gunfire=createGunfire(scene,heldTools.muzzle),swordSwing=new SwordSwing(),swordTrail=createSwordTrail(scene,heldTools.swordBase,heldTools.swordTip);
   const fishing=new FishingModel(),fishingView=createFishingView(scene,camera,canvas,heldTools.rodTip);
   let fishingSlot:number|null=null,castAim:Point|null=null;
@@ -87,7 +95,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   const dustMat=new StandardMaterial("footstep-dust",scene);dustMat.diffuseColor=Color3.FromHexString("#dcc593");dustMat.specularColor=Color3.Black();dustMat.alpha=.45;
   const dust=Array.from({length:12},()=>{const m=MeshBuilder.CreateBox("dust",{size:.11},scene);m.material=dustMat;m.isPickable=false;m.setEnabled(false);return {m,life:0};});
   const keys=new Set<string>();let paused=false,disposed=false;
-  const audio=new GameAudio(),music=new BackgroundMusic();music.setHidden(document.hidden);
+  const audio=new GameAudio(),music=new BackgroundMusic(),dialogue=new DialogueModel();music.setHidden(document.hidden);
   const renderGuard=new RenderGuard({
     isReady:()=>scene.isReady()&&camera.isReady(true),
     readFrame:()=>{
@@ -107,6 +115,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   let settings:GameSettings={zoom:140,shadows:true,motion:!window.matchMedia("(prefers-reduced-motion: reduce)").matches,occlusion:true,grid:true,bloom:true,timeScale:1,sound:true,volume:.55,music:true,musicVolume:.22};
   let renderedZoom=settings.zoom;
   let t=0,statusClock=0,stepClock=0,paddleClock=0,dustIndex=0,lastMoving=false,desiredYaw=-.7,movementYaw=-.7;
+  let pointerIsTouch=false;
   let mouse:{x:number;y:number}|null=null,aimPoint:Point|null=null,hovered:{coord:Point;override?:TileKind}|null=null,actionCooldown=0,actionTime=0,hoverClock=0;
   const tracked=new Vector3(SPAWN.x,0,SPAWN.z+1.4),directionToCamera=new Vector3(.5,Math.SQRT1_2,-.5);
   function clearFishingInput(){
@@ -124,20 +133,52 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     // A fishing line is a point, not a walking body; radius 0 clears the shoreline.
     return findFishingSpot(avatar.position,aim,(x,z)=>world.canWalk(x,z,0),power);
   }
-  function fishingState():FishingSnapshot {return {...fishing.snapshot(),canCast:!paused&&!fishing.active&&!!fishingTarget(false,0)};}
+  function fishingState():FishingSnapshot {return {...fishing.snapshot(),canCast:!paused&&!dialogue.active&&!fishing.active&&!!fishingTarget(false,0)};}
   const nearbyItem=()=>{const item=groundItems.nearest(avatar.position);return item&&(boat.aboard||world.clearReach(avatar.position,item.position))?item:null;};
+  // Query residents directly: an unreachable nearer NPC must not hide a reachable one,
+  // and the dedicated UI action must not accidentally pick up loot or start mining.
+  function nearbyResident(){
+    if(dialogue.active||boat.aboard||fishing.active||dodge.active)return null;
+    return world.residents.residents.filter(npc=>Math.hypot(npc.root.position.x-avatar.position.x,npc.root.position.z-avatar.position.z)<=2&&world.clearReach(avatar.position,npc.root.position))
+      .sort((a,b)=>Vector3.DistanceSquared(a.root.position,avatar.position)-Vector3.DistanceSquared(b.root.position,avatar.position))[0]??null;
+  }
+  function publishDialogue(){
+    const snapshot=dialogue.snapshot();events.dialogue?.(snapshot);
+    canvas.dataset.dialogueActive=String(snapshot.active);canvas.dataset.dialogueNode=snapshot.nodeId??"";
+    canvas.dataset.dialogueSerial=String(snapshot.serial);canvas.dataset.dialogueTyping=String(snapshot.typing);
+  }
+  function dialogueAction(action:()=>void){
+    if(paused||disposed||!dialogue.active)return;
+    audio.stopSound("dialogueTick");action();publishDialogue();
+    if(!dialogue.active){clearInput();publish();}
+  }
+  const dialogueAdvance=()=>dialogueAction(()=>dialogue.advance());
+  const dialogueChoose=(id:string)=>dialogueAction(()=>dialogue.choose(id));
+  const dialogueClose=()=>dialogueAction(()=>dialogue.close());
+  function talkNearby(){
+    if(paused||disposed||dialogue.active||fishing.active||dodge.active||boat.aboard)return;
+    const npc=nearbyResident();if(!npc)return;
+    clearInput();actionTime=actionCooldown=0;lastMoving=false;boat.moving=false;
+    mouse=null;aimPoint=null;hovered=null;hoveredOre=null;farmView.hover(null);events.hover(null);
+    desiredYaw=movementYaw=Math.atan2(avatar.position.x-npc.root.position.x,avatar.position.z-npc.root.position.z);body.rotation.y=desiredYaw;
+    farmer.animate(t,0,false,mode.running,false,0,settings.motion,bag.hand);
+    npc.root.rotation.y=Math.atan2(npc.root.position.x-avatar.position.x,npc.root.position.z-avatar.position.z);
+    npc.limbs.forEach(limb=>{limb.rotation.x=0;limb.rotation.z=0;});
+    const speaker:DialogueSpeaker={name:npc.name,color:npc.color,line:npc.lineNow(),injured:npc.hp<VILLAGER_HEALTH,panicking:npc.panic>0};
+    dialogue.start(speaker,dialogueFor(speaker));publishDialogue();publish();
+  }
   function interaction():Interaction|null {
-    if(fishing.active||dodge.active)return null;
+    if(dialogue.active||fishing.active||dodge.active)return null;
     if(mining.active){const ore=mining.get(mining.swing?.nodeId);return ore&&ore.health>0?{kind:"mine",label:miningHold.active?"连续开采中 · 松开停止":"长按继续开采"}:null;}
     const item=nearbyItem();if(item)return {kind:"pickup",label:`拾取${ITEMS[item.stack.id].name} ×${item.stack.count}`};
     if(boat.aboard)return {kind:"boat",label:boat.landing(world.canWalk)?"靠岸下船":"驶近岸边或码头下船"};
     if(Math.hypot(avatar.position.x-boat.position.x,avatar.position.z-boat.position.z)<2.9)return {kind:"boat",label:"登上小船"};
     const ore=mining.nearest(avatar.position);if(ore)return {kind:"mine",label:`开采${ORES[ore.kind].name} · 剩 ${ore.health} 镐`};
     if(world.roomAt(avatar.position)?.shop)return {kind:"shop",label:"松果杂货店 · 买卖物品"};
-    const npc=world.residents.nearest(avatar.position);return npc?{kind:"talk",label:`和${npc.name}聊聊`}:null;
+    const npc=nearbyResident();return npc?{kind:"talk",label:`和${npc.name}聊聊`}:null;
   }
   function publish(){
-    const {x,z}=avatar.position;onStatus({x,z,location:boat.aboard?"蔚蓝海域 · 小船":world.roomAt(avatar.position)?.name??regionName(avatar.position),moving:lastMoving,running:mode.running,aboard:boat.aboard,fps:Math.round(engine.getFps()),bag:bag.snapshot(),interaction:interaction(),clock:clock.snapshot(),bloomAvailable:!lighting.compatible,fishing:fishingState(),mining:miningState(),boss:bossState(),dodge:dodge.snapshot()});
+    const {x,z}=avatar.position,npc=nearbyResident();onStatus({x,z,location:boat.aboard?"蔚蓝海域 · 小船":world.roomAt(avatar.position)?.name??regionName(avatar.position),moving:lastMoving,running:mode.running,aboard:boat.aboard,fps:Math.round(engine.getFps()),bag:bag.snapshot(),interaction:interaction(),clock:clock.snapshot(),bloomAvailable:!lighting.compatible,fishing:fishingState(),mining:miningState(),boss:bossState(),dodge:dodge.snapshot(),dialogueActive:dialogue.active,talkTarget:npc?{name:npc.name,color:npc.color}:null});
     canvas.dataset.playerX=x.toFixed(2);canvas.dataset.playerZ=z.toFixed(2);canvas.dataset.inputMode="tools";canvas.dataset.selectedTool=bag.hand??"none";
     canvas.dataset.movementMode=boat.aboard?"sailing":mode.running?"running":"walking";canvas.dataset.speed=String(mode.running?SPRINT_SPEED:WALK_SPEED);canvas.dataset.gold=String(bag.gold);canvas.dataset.inventorySlots=String(bag.slots.length);
     canvas.dataset.hoveredTile=hovered?`${hovered.coord.x},${hovered.coord.z}`:"";canvas.dataset.cameraElevation="45";canvas.dataset.cameraProjection="orthographic";
@@ -154,7 +195,12 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     canvas.dataset.groundItems=JSON.stringify(groundItems.items.map(item=>{const p=groundView.center(item.id);return {id:item.id,item:item.stack.id,count:item.stack.count,x:item.position.x,z:item.position.z,airborne:!!item.flight,flightTime:item.flight?.elapsed??null,visual:p?{x:p.x,y:p.y,z:p.z}:null};}));
     const screen=canvas.getBoundingClientRect(),bossScreen=Vector3.Project(new Vector3(boss.position.x,1.05,boss.position.z),Matrix.Identity(),scene.getTransformMatrix(),camera.viewport.toGlobal(screen.width,screen.height));canvas.dataset.bossScreen=JSON.stringify({x:bossScreen.x,y:bossScreen.y});
     const bs=bossState();canvas.dataset.bossPhase=boss.phase;canvas.dataset.bossHp=String(boss.hp);canvas.dataset.bossX=boss.position.x.toFixed(3);canvas.dataset.bossZ=boss.position.z.toFixed(3);canvas.dataset.bossVisible=String(bs.visible);canvas.dataset.bossTelegraph=JSON.stringify(boss.telegraph);canvas.dataset.playerHealth=String(playerHealth.hp);
-    heldTools.select(boat.aboard||dodge.active?null:bag.hand);farmer.equip(bag.snapshot());statusClock=0;
+    heldTools.select(boat.aboard||dodge.active?null:bag.hand);
+    // Publish can happen before animate (or while paused). Only change the
+    // target here; the post-animation frame update prepares the current pose.
+    flashlight.select(bag.hand,boat.aboard,dodge.active);
+    canvas.dataset.flashlightEnabled=String(flashlight.active);
+    farmer.equip(bag.snapshot());statusClock=0;
   }
   const announce=(result:InventoryResult)=>{events.action(result);publish();};
   function bossPlayer(){return {x:avatar.position.x,z:avatar.position.z,aboard:boat.aboard,alive:playerHealth.hp>0};}
@@ -188,19 +234,19 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   let lastCry=-10;
   function villagerHurt(v:Hittable){if(t-lastCry<1.2)return;lastCry=t;audio.play("startled",.85);announce({ok:false,message:`${v.name}：${v.cry()}`});}
   function startDodge(){
-    if(paused||boat.aboard||playerHealth.hp<=0||fishing.phase==="catching")return;
+    if(paused||dialogue.active||boat.aboard||playerHealth.hp<=0||fishing.phase==="catching")return;
     const right=Number(keys.has("d")||keys.has("arrowright"))-Number(keys.has("a")||keys.has("arrowleft")),up=Number(keys.has("w")||keys.has("arrowup"))-Number(keys.has("s")||keys.has("arrowdown"));
     if(!dodge.begin(movementVector(right,up,0,null),desiredYaw))return;
     cancelSword();cancelMining();clearFishingInput();
     if(fishing.active){fishing.reset();fishingView.clear();fishingSlot=null;castAim=null;}
     actionTime=0;desiredYaw=dodge.heading;body.rotation.y=desiredYaw;audio.play("dodge",.9);publish();
   }
-  const selectSlot=(index:number)=>{if(fishing.active||dodge.active)return;const previous=bag.selected;bag.select(index);if(bag.hand!=="pickaxe")cancelMining();if(bag.hand!=="sword")cancelSword();if(bag.selected!==previous)audio.play("select");hoverClock=.2;publish();};
-  const toggleRun=()=>{if(paused||fishing.active)return;mode.toggle();publish();};
-  const key=(k:string,down:boolean)=>{k=k.toLowerCase();if(down&&fishing.active)return;if(k==="shift"){if(!paused||!down){mode.shift(down);publish();}return;}if(down&&!paused)keys.add(k);else keys.delete(k);};
+  const selectSlot=(index:number)=>{if(dialogue.active||fishing.active||dodge.active)return;const previous=bag.selected;bag.select(index);if(bag.hand!=="pickaxe")cancelMining();if(bag.hand!=="sword")cancelSword();if(bag.selected!==previous)audio.play("select");hoverClock=.2;publish();};
+  const toggleRun=()=>{if(paused||dialogue.active||fishing.active)return;mode.toggle();publish();};
+  const key=(k:string,down:boolean)=>{k=k.toLowerCase();if(dialogue.active){keys.delete(k);return;}if(down&&fishing.active)return;if(k==="shift"){if(!paused||!down){mode.shift(down);publish();}return;}if(down&&!paused)keys.add(k);else keys.delete(k);};
   function cancelFishing(){if(paused)return;if(fishing.cancel()){clearInput();castAim=null;fishingView.clear();fishingSlot=null;announce({ok:true,message:"收起钓竿 · 换一处水面再试试"});}}
   function fishingPress(useFacing=false,source="ui"){
-    if(paused||dodge.active||mining.active||fishingInputs.has(source))return;
+    if(paused||dialogue.active||dodge.active||mining.active||fishingInputs.has(source))return;
     if(boss.engaged){announce({ok:false,message:"犀王正在追击你 · 先离开冲锋路线，脱战后再钓鱼"});return;}
     fishingInputs.add(source);
     if(fishing.active){const before=fishing.phase;fishing.press();if(before!==fishing.phase){audio.play("reel");publish();}return;}
@@ -244,19 +290,19 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     actionTime=actionCooldown=MINING_SWING_DURATION;lastMoving=false;audio.play("mineSwing");publish();return true;
   }
   function holdMining(node:OreNode|null,source:string){
-    if(paused||dodge.active||fishing.active||boat.aboard)return false;
+    if(paused||dialogue.active||dodge.active||fishing.active||boat.aboard)return false;
     if(mining.active){const active=mining.get(mining.swing?.nodeId);if(!active||active.health<=0)return false;miningHold.press(source,active.id);publish();return true;}
     if(!startMining(node))return false;
     miningHold.press(source,node!.id);publish();return true;
   }
   function pressMiningAction(useFacing:boolean,source:string){
-    if(bag.hand!=="pickaxe"||paused||fishing.active||boat.aboard)return false;
+    if(bag.hand!=="pickaxe"||paused||dialogue.active||fishing.active||boat.aboard)return false;
     if(mining.active)return holdMining(null,source);
     pickTile();const aim=useFacing||!aimPoint?{x:avatar.position.x-Math.sin(desiredYaw)*2,z:avatar.position.z-Math.cos(desiredYaw)*2}:aimPoint;
     return holdMining(mining.target(avatar.position,aim,useFacing?null:hoveredOre),source);
   }
   function pressMiningInteraction(source:string){
-    if(paused||dodge.active||fishing.active||boat.aboard)return false;
+    if(paused||dialogue.active||dodge.active||fishing.active||boat.aboard)return false;
     if(mining.active)return holdMining(null,source);
     // Existing nearby pickup/boat interactions keep precedence and are never repeated.
     if(nearbyItem()||Math.hypot(avatar.position.x-boat.position.x,avatar.position.z-boat.position.z)<2.9)return false;
@@ -266,7 +312,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   }
   function releaseMining(source:string){const active=miningHold.active;miningHold.release(source);if(active)publish();}
   function interact(){
-    if(paused||dodge.active||fishing.active||mining.active||actionCooldown>0)return;
+    if(paused||dialogue.active||dodge.active||fishing.active||mining.active||actionCooldown>0)return;
     const item=nearbyItem();if(item){
       const origin=groundView.center(item.id)??new Vector3(item.position.x,world.heightAt(item.position.x,item.position.z)+.2,item.position.z);
       const result=groundItems.pickup(item.id,bag);
@@ -283,16 +329,19 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
       selectSlot(slot);startMining(ore);return;
     }
     if(world.roomAt(avatar.position)?.shop){clearInput();paused=true;events.shop();return;}
-    const npc=world.residents.nearest(avatar.position);if(npc){announce({ok:true,message:`${npc.name}：${npc.lineNow()}`});return;}
+    if(nearbyResident()){talkNearby();return;}
     announce({ok:false,message:"靠近小船、地面物品或镇民时按 E；进入杂货店后可交易"});
   }
   function pickTile(){
     hoveredOre=null;
-    if(!mouse||paused||fishing.active){hovered=null;aimPoint=null;farmView.hover(null);events.hover(null);return;}
+    if(!mouse||paused||dialogue.active||fishing.active){hovered=null;aimPoint=null;farmView.hover(null);events.hover(null);return;}
     const ray=scene.createPickingRay(mouse.x,mouse.y,Matrix.Identity(),camera,false),distance=-ray.origin.y/ray.direction.y;if(distance<0)return;
     const ground=ray.origin.add(ray.direction.scale(distance));
     if(bag.hand==="fishingRod"){
       const water=ray.origin.add(ray.direction.scale((-.2-ray.origin.y)/ray.direction.y));aimPoint={x:water.x,z:water.z};hovered=null;farmView.hover(null);events.hover(null);return;
+    }
+    if(bag.hand==="flashlight"){
+      aimPoint={x:ground.x,z:ground.z};hovered=null;farmView.hover(null);events.hover(null);return;
     }
     const weapon=bag.hand==="pistol"||bag.hand==="sword";
     const aim=weapon?ray.origin.add(ray.direction.scale((.35-ray.origin.y)/ray.direction.y)):ground;aimPoint={x:aim.x,z:aim.z};
@@ -318,11 +367,13 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     events.hover(info);
   }
   function performAction(useFacing=false){
-    if(paused||dodge.active||mining.active)return;
+    if(paused||dialogue.active||dodge.active||mining.active)return;
     if(bag.hand==="fishingRod"||fishing.active){fishingPress(useFacing,useFacing?"keyboard":"pointer");return;}
     if(actionCooldown>0)return;
     if(boat.aboard){announce({ok:false,message:"先靠岸下船，再使用工具或武器"});return;}
     const hand=bag.hand;if(!hand){announce({ok:false,message:"先在物品栏选择农具或武器"});return;}
+    // Selection is the switch: no farming action, recoil, cooldown or battery.
+    if(hand==="flashlight")return;
     pickTile();const aim=aimPoint??{x:avatar.position.x-Math.sin(desiredYaw),z:avatar.position.z-Math.cos(desiredYaw)};
     if(hand==="pickaxe"){
       const miningAim=useFacing?{x:avatar.position.x-Math.sin(desiredYaw)*2,z:avatar.position.z-Math.cos(desiredYaw)*2}:aim;
@@ -364,13 +415,23 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     if(result.ok&&result.tile){audio.play(tool);farmView.updateTile(result.tile);farmView.effect(result.tile,tool);actionCooldown=.43;actionTime=.43;const dx=result.tile.x+.5-avatar.position.x,dz=result.tile.z+.5-avatar.position.z;if(Math.hypot(dx,dz)>.15)desiredYaw=Math.atan2(-dx,-dz);}
     pickTile();
   }
-  function trade(action:()=>InventoryResult){if(boat.aboard||!world.roomAt(avatar.position)?.shop){announce({ok:false,message:"请先进入小镇的松果杂货店"});return;}const result=action();if(result.ok)audio.play("coin");announce(result);}
+  function trade(action:()=>InventoryResult){if(dialogue.active)return;if(boat.aboard||!world.roomAt(avatar.position)?.shop){announce({ok:false,message:"请先进入小镇的松果杂货店"});return;}const result=action();if(result.ok)audio.play("coin");announce(result);}
   const projectCamera=()=>{const aspect=engine.getRenderWidth()/Math.max(1,engine.getRenderHeight()),halfHeight=(aspect<.85?13:15.8)*100/renderedZoom;camera.orthoTop=halfHeight;camera.orthoBottom=-halfHeight;camera.orthoLeft=-halfHeight*aspect;camera.orthoRight=halfHeight*aspect;};
   const resize=()=>{engine.resize();projectCamera();renderGuard.watch();};
   resize();window.addEventListener("resize",resize);const observer=new ResizeObserver(resize);observer.observe(canvas);
   const keyDown=(e:KeyboardEvent)=>{
     if(paused||e.ctrlKey||e.metaKey||e.altKey)return;const el=e.target as HTMLElement;
-    if(el?.closest?.('input,textarea,[role="dialog"],[contenteditable="true"]'))return;
+    if(el?.closest?.('input,textarea,[role="dialog"],[data-dialogue],[contenteditable="true"]'))return;
+    if(dialogue.active){
+      if(e.key==="Escape"){e.preventDefault();if(!e.repeat)dialogueClose();return;}
+      if(e.key.toLowerCase()==="e"||e.key==="Enter"||e.code==="Space"){
+        // Native controls own their keyboard click; never also advance here.
+        if(el?.closest?.('button,[role="button"],[role="switch"],[role="radio"],[role="slider"]'))return;
+        e.preventDefault();if(!e.repeat)dialogueAdvance();return;
+      }
+      if(/^[1-9]$/.test(e.key)||["w","a","s","d","f","arrowup","arrowdown","arrowleft","arrowright","shift"].includes(e.key.toLowerCase()))e.preventDefault();
+      return;
+    }
     if(e.key.startsWith("Arrow")&&el?.closest?.('[role="radiogroup"],[role="slider"],[data-inventory-slot]'))return;
     if(e.key==="Escape"&&(mining.active||miningHold.active)){e.preventDefault();cancelMining();publish();return;}
     if(e.key==="Escape"&&fishing.active){e.preventDefault();cancelFishing();return;}
@@ -389,9 +450,15 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   window.addEventListener("keydown",keyDown);window.addEventListener("keyup",keyUp);window.addEventListener("blur",clearInput);document.addEventListener("visibilitychange",visibility);
   const unlockAudio=(event:Event)=>{if(event.isTrusted){audio.unlock();music.unlock();}};
   document.addEventListener("pointerdown",unlockAudio,true);document.addEventListener("keydown",unlockAudio,true);
-  const movePointer=(e:PointerEvent)=>{const b=canvas.getBoundingClientRect();mouse={x:e.clientX-b.left,y:e.clientY-b.top};};
+  // Touch controls live outside the canvas; clear stale desktop aiming even
+  // when the user only touches inventory / the mobile direction pad.
+  const pointerMode=(e:PointerEvent)=>{pointerIsTouch=e.pointerType==="touch";if(pointerIsTouch&&bag.hand==="flashlight"){mouse=null;aimPoint=null;}};
+  document.addEventListener("pointerdown",pointerMode,true);
+  const movePointer=(e:PointerEvent)=>{pointerMode(e);if(pointerIsTouch&&bag.hand==="flashlight")return;const b=canvas.getBoundingClientRect();mouse={x:e.clientX-b.left,y:e.clientY-b.top};};
   const pointer=(e:PointerEvent)=>{
-    if(paused||e.button!==0||!e.isPrimary)return;canvas.focus({preventScroll:true});movePointer(e);
+    if(paused||e.button!==0||!e.isPrimary)return;
+    if(dialogue.active){e.preventDefault();dialogueAdvance();return;}
+    canvas.focus({preventScroll:true});movePointer(e);
     if(bag.hand==="pickaxe"){if(pressMiningAction(false,"pointer:"+e.pointerId))canvas.setPointerCapture(e.pointerId);return;}
     if(bag.hand==="fishingRod")canvas.setPointerCapture(e.pointerId);performAction();
   };
@@ -406,13 +473,20 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
   canvas.addEventListener("pointerdown",pointer);canvas.addEventListener("pointermove",movePointer);canvas.addEventListener("pointerleave",leavePointer);
   const contextLost=()=>{clearInput();renderGuard.dispose();onError("画面连接已中断，请刷新页面重新进入农场。");};canvas.addEventListener("webglcontextlost",contextLost);
   const renderFrame=()=>{
-    const simDt=Math.min(engine.getDeltaTime()/1000,.25),dt=Math.min(simDt,.045);
+    const realDt=Math.max(0,engine.getDeltaTime()/1000),simDt=Math.min(realDt,.25),dt=Math.min(simDt,.045);
+    const worldPaused=paused||dialogue.active;
+    // Real seconds, independent of game timeScale and world/menu pause state.
+    if(!paused&&!document.hidden&&dialogue.active){
+      const result=dialogue.update(realDt);
+      if(result.blips>0)audio.play("dialogueTick");
+      if(result.changed)publishDialogue();
+    }
     if(renderedZoom!==settings.zoom){
       renderedZoom+= (settings.zoom-renderedZoom)*(1-Math.exp(-16*dt));
       if(Math.abs(settings.zoom-renderedZoom)<.01)renderedZoom=settings.zoom;
       projectCamera();
     }
-    if(!paused){
+    if(!worldPaused){
       clock.update(simDt,settings.timeScale);
       t+=simDt;actionCooldown=Math.max(0,actionCooldown-simDt);actionTime=Math.max(0,actionTime-simDt);for(const tile of farm.update(simDt))farmView.updateTile(tile);
       if(swordSwing.active){
@@ -440,11 +514,14 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
       if(impact){
         if(impact.ok){
           miningView.hit(impact,settings.motion);audio.play(impact.node.kind==="crystal"?"crystalHit":"mineHit");
+          // Every successful contact commits its own independent airborne ore.
+          // The final impact adds only stone byproducts, never repeats prior ore.
+          groundItems.eject(impact.loot,{x:impact.node.x,y:world.heightAt(impact.node.x,impact.node.z)+.62*impact.node.size,z:impact.node.z},avatar.position,world.canWalk,world.clearReach);
+          groundView.update(t,settings.motion);
           if(impact.broken){
             audio.play("mineBreak",.8);
             miningHold.clear();
-            groundItems.eject(impact.loot,{x:impact.node.x,y:world.heightAt(impact.node.x,impact.node.z)+.62*impact.node.size,z:impact.node.z},avatar.position,world.canWalk,world.clearReach);
-            announce({ok:true,message:`矿脉敲碎 · ${impact.loot.map(stack=>`${ITEMS[stack.id].name} ×${stack.count}`).join(" · ")}弹出落地，靠近按 E 拾取`});
+            announce({ok:true,message:`矿脉敲碎 · 最后一颗矿石与碎石弹出落地，靠近按 E 拾取`});
           }else publish();
         }else announce(impact);
       }
@@ -456,7 +533,7 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
       }
       if(groundItems.update(simDt)>0)publish();
       const right=Number(keys.has("d")||keys.has("arrowright"))-Number(keys.has("a")||keys.has("arrowleft")),up=Number(keys.has("w")||keys.has("arrowup"))-Number(keys.has("s")||keys.has("arrowdown"));
-      const {x:dx,z:dz}=movementVector(fishing.active?0:right,fishing.active?0:up,actionTime,bag.hand),aiming=bag.hand==="pistol"&&!boat.aboard&&(!!mouse||actionTime>0);
+      const {x:dx,z:dz}=movementVector(fishing.active?0:right,fishing.active?0:up,actionTime,bag.hand),aiming=!boat.aboard&&(bag.hand==="pistol"&&(!!mouse||actionTime>0)||bag.hand==="flashlight"&&!!mouse&&!pointerIsTouch);
       const wasDodging=dodge.active,wasDodgeReady=dodge.cooldown<=0;
       let moved=dodge.update(dt,avatar.position,playerCanWalk);
       if(boat.aboard){moved=boat.move(dx,dz,dt);avatar.position.set(boat.position.x,boat.height(settings.motion?t:0)+BOAT_SEAT_HEIGHT,boat.position.z);desiredYaw=boat.yaw;}
@@ -489,33 +566,46 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     ring.setEnabled(!boat.aboard);ring.position.set(avatar.position.x,avatar.position.y+.032,avatar.position.z);
     tracked.x+=(avatar.position.x-tracked.x)*(1-Math.exp(-3.8*dt));tracked.z+=(avatar.position.z+1.4-tracked.z)*(1-Math.exp(-3.8*dt));camera.setTarget(tracked);
     const solar=lighting.update(clock.hour,tracked);
-    world.update(t,settings.motion,boat.aboard?undefined:avatar.position,settings.shadows,paused?0:dt,solar,tracked);boatView.update(t,settings.motion);groundView.update(t,settings.motion);
+    // Residents mutate facing/route even at dt=0, so do not run their update
+    // during dialogue. The frozen participant keeps facing the farmer.
+    if(!dialogue.active)world.update(t,settings.motion,boat.aboard?undefined:avatar.position,settings.shadows,worldPaused?0:dt,solar,tracked);
+    boatView.update(t,settings.motion);groundView.update(t,settings.motion);
     const bossPhase=boss.phase;
-    playerHealth.update(paused?0:simDt,boss.engaged);boss.update(paused?0:dt,bossPlayer());
-    if(combat.update(paused?0:simDt,settings.motion)>0)audio.play("slime",.65);
-    if(!paused){finishBossEvents();if(boss.phase!==bossPhase)publish();}
-    bossView.update(t,paused?0:simDt,settings.motion,settings.shadows);playerHitView.update();
-    gunfire.update(paused?0:simDt,settings.motion);
-    actionEffects.update(paused?0:simDt,settings.motion);
-    swordTrail.update(swordSwing.active?swordSwing.elapsed:null,paused?0:dt,settings.motion);
+    if(!worldPaused){
+      playerHealth.update(simDt,boss.engaged);boss.update(dt,bossPlayer());
+      if(combat.update(simDt,settings.motion)>0)audio.play("slime",.65);
+    }
+    if(!worldPaused){finishBossEvents();if(boss.phase!==bossPhase)publish();}
+    bossView.update(t,worldPaused?0:simDt,settings.motion,settings.shadows);playerHitView.update();
+    flashlight.update(bag.hand,body.rotation.y,avatar.position,boat.aboard,dodge.active,worldPaused?0:dt);
+    canvas.dataset.flashlightEnabled=String(flashlight.active);
+    canvas.dataset.flashlightIntensity=String(flashlight.light.intensity);
+    canvas.dataset.flashlightShadowReady=String(flashlight.shadowReady);
+    canvas.dataset.flashlightPosition=JSON.stringify(flashlight.light.position.asArray());
+    canvas.dataset.flashlightDirection=JSON.stringify(flashlight.light.direction.asArray());
+    canvas.dataset.flashlightCasters=String(flashlight.shadow.getShadowMap()?.renderList?.length??0);
+    gunfire.update(worldPaused?0:simDt,settings.motion);
+    actionEffects.update(worldPaused?0:simDt,settings.motion);
+    swordTrail.update(swordSwing.active?swordSwing.elapsed:null,worldPaused?0:dt,settings.motion);
     canvas.dataset.swordPhase=swordSwing.active?swordSwing.elapsed<SWORD.windup?"windup":swordSwing.elapsed<SWORD.cutEnd?"cut":"recover":"idle";
     canvas.dataset.swordTime=swordSwing.elapsed.toFixed(3);
     if(bag.hand==="sword"){
       heldTools.swordBase.computeWorldMatrix(true);heldTools.swordTip.computeWorldMatrix(true);
       canvas.dataset.swordBlade=JSON.stringify({base:heldTools.swordBase.getAbsolutePosition().asArray(),tip:heldTools.swordTip.getAbsolutePosition().asArray(),torso:farmer.torsoTurn.rotation.y,trail:swordTrail.mesh.isEnabled()});
     }else delete canvas.dataset.swordBlade;
-    miningView.update(t,paused?0:simDt,settings.motion,paused?null:miningState().target,heldTools.pickaxeTip);
-    farmView.update(t,paused?0:simDt,settings.motion,avatar.position,settings.grid,!!mouse&&!paused&&!boat.aboard&&!!bag.tool);
+    miningView.update(t,worldPaused?0:simDt,settings.motion,worldPaused?null:miningState().target,heldTools.pickaxeTip);
+    farmView.update(t,worldPaused?0:simDt,settings.motion,avatar.position,settings.grid,!!mouse&&!worldPaused&&!boat.aboard&&!!bag.tool);
     hoverClock+=dt;if(hoverClock>.09){hoverClock=0;pickTile();}
     const room=world.roomAt(avatar.position),sightRay=new Ray(avatar.position.add(new Vector3(0,1.15,0)),directionToCamera,60);
+    roomCutaway.update(room?.id??null);
     for(const o of world.occluders){
       const box=o.mesh.getBoundingInfo().boundingBox,blocked=settings.occlusion&&sightRay.intersectsBoxMinMax(box.minimumWorld,box.maximumWorld);
-      const opacity=o.room&&room?.id===o.room?(o.insideOpacity??.12):blocked?.19:1;o.mesh.visibility+=(opacity-o.mesh.visibility)*(1-Math.exp(-9*dt));
+      const opacity=o.room&&room?.id===o.room?(o.insideOpacity??.12):blocked?.19:1;o.mesh.visibility=cutawayVisibility(o.mesh.visibility,opacity,dt);
       if(o.phase!==0){const gust=.018+Math.sin(t*.36)*.009;o.mesh.rotation.z=settings.motion?Math.sin(t+o.phase+o.x*.22)*gust:0;o.mesh.rotation.x=settings.motion?Math.cos(t*.73+o.z*.26)*.01:0;}
     }
     camera.getViewMatrix();scene.updateTransformMatrix();
-    fishingView.update(fishing.snapshot(),avatar.position,t,paused?0:simDt,settings.motion,paused?null:fishingTarget(),fishingSlot);
-    pickupView.update(paused?0:dt,settings.motion);
+    fishingView.update(fishing.snapshot(),avatar.position,t,worldPaused?0:simDt,settings.motion,worldPaused?null:fishingTarget(),fishingSlot);
+    pickupView.update(worldPaused?0:dt,settings.motion);
     statusClock+=dt;if(statusClock>.2)publish();scene.render();renderGuard.afterFrame(simDt);
   };
   const tick=()=>{
@@ -523,14 +613,22 @@ export function createGame(canvas:HTMLCanvasElement,onReady:()=>void,onStatus:(s
     try{renderFrame();}
     catch(error){console.error("Pinebrook render failed",error);renderGuard.fail("渲染发生异常，请重新进入农场。");}
   };
-  publish();engine.runRenderLoop(tick);
+  publishDialogue();publish();engine.runRenderLoop(tick);
   return {
-    settings(s){settings=s;audio.settings(s.sound,s.volume);music.settings(s.music,s.musicVolume);scene.shadowsEnabled=s.shadows;lighting.setBloom(s.bloom);renderGuard.watch();},pause(p){paused=p;clearInput();if(p){lastMoving=false;boat.moving=false;}},key,toggleRun,interact,dodge:startDodge,miningPress:()=>pressMiningInteraction("ui"),miningRelease:()=>releaseMining("ui"),selectSlot,fishingPress:()=>fishingPress(false,"ui"),fishingRelease:()=>fishingRelease("ui"),cancelFishing,fishingState,
+    settings(s){settings=s;audio.settings(s.sound,s.volume);music.settings(s.music,s.musicVolume);scene.shadowsEnabled=s.shadows;lighting.setBloom(s.bloom);renderGuard.watch();},pause(p){paused=p;clearInput();if(p){lastMoving=false;boat.moving=false;}},key,toggleRun,interact,dialogueAdvance,dialogueChoose,dialogueClose,talkNearby,dodge:startDodge,miningPress:()=>pressMiningInteraction("ui"),miningRelease:()=>releaseMining("ui"),selectSlot,fishingPress:()=>fishingPress(false,"ui"),fishingRelease:()=>fishingRelease("ui"),cancelFishing,fishingState,
     setTime(hour){clock.setHour(hour);renderGuard.watch();publish();},
-    moveItem(from,to){if(fishing.active||mining.active||dodge.active)return;const result=bag.move(from,to);if(result.ok)audio.play("select");announce(result);},
-    dropItem(index){if(paused||dodge.active||fishing.active||mining.active)return;if(index===14&&bag.backpackOccupied){announce({ok:false,message:"请先清空背包，再卸下或丢弃"});return;}const item=bag.drop(index);if(!item){announce({ok:false,message:"先选择要丢弃的物品"});return;}groundItems.add(item,avatar.position);audio.play("drop");announce({ok:true,message:`放下${ITEMS[item.id].name} ×${item.count} · 按 E 可重新拾取`});},
+    moveItem(from,to){if(dialogue.active||fishing.active||mining.active||dodge.active)return;const result=bag.move(from,to);if(result.ok)audio.play("select");announce(result);},
+    dropItem(index){
+      if(paused||dialogue.active||dodge.active||fishing.active||mining.active)return;
+      if(boat.aboard){announce({ok:false,message:"先靠岸下船，再丢下物品 · 物品已保留"});return;}
+      // Use the visible body heading (local -Z), not a stale mouse/world drop target.
+      const origin={x:avatar.position.x,y:avatar.position.y+body.position.y+INVENTORY_DROP.bodyHeight,z:avatar.position.z};
+      const result=groundItems.dropFromInventory(bag,index,origin,body.rotation.y,world.canWalk,world.clearReach);
+      if(result.ok){groundView.update(t,settings.motion);audio.play("drop");}
+      announce(result);
+    },
     buyItem(id){trade(()=>bag.buy(id));},sellItem(index,all){trade(()=>bag.sell(index,all));},buyBackpack(){trade(()=>bag.buyBackpack());},
-    reset(){clearInput();dodge.reset();pickupView.clear();playerHealth.reset();boss.disengage();if(fishing.phase==="catching"){fishing.update(FISHING.catchSeconds);finishCatch();}fishing.reset();fishingView.clear();fishingSlot=null;boat.reset();avatar.position.set(SPAWN.x,0,SPAWN.z);desiredYaw=movementYaw=-.7;tracked.set(SPAWN.x,0,SPAWN.z+1.4);publish();},
-    dispose(){disposed=true;renderGuard.dispose();clearInput();fishing.reset();fishingView.dispose();pickupView.dispose();window.removeEventListener("pointerup",pointerUp);window.removeEventListener("pointercancel",cancelPointer);canvas.removeEventListener("lostpointercapture",cancelPointer);audio.dispose();music.dispose();observer.disconnect();window.removeEventListener("resize",resize);window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);window.removeEventListener("blur",clearInput);document.removeEventListener("visibilitychange",visibility);document.removeEventListener("pointerdown",unlockAudio,true);document.removeEventListener("keydown",unlockAudio,true);canvas.removeEventListener("pointerdown",pointer);canvas.removeEventListener("pointermove",movePointer);canvas.removeEventListener("pointerleave",leavePointer);canvas.removeEventListener("webglcontextlost",contextLost);engine.stopRenderLoop(tick);scene.dispose();engine.dispose();},
+    reset(){dialogue.close();publishDialogue();clearInput();dodge.reset();pickupView.clear();playerHealth.reset();boss.disengage();if(fishing.phase==="catching"){fishing.update(FISHING.catchSeconds);finishCatch();}fishing.reset();fishingView.clear();fishingSlot=null;boat.reset();avatar.position.set(SPAWN.x,0,SPAWN.z);desiredYaw=movementYaw=-.7;tracked.set(SPAWN.x,0,SPAWN.z+1.4);publish();},
+    dispose(){disposed=true;roomCutaway.dispose();dialogue.close();publishDialogue();renderGuard.dispose();clearInput();flashlight.dispose();fishing.reset();fishingView.dispose();pickupView.dispose();window.removeEventListener("pointerup",pointerUp);window.removeEventListener("pointercancel",cancelPointer);canvas.removeEventListener("lostpointercapture",cancelPointer);audio.dispose();music.dispose();observer.disconnect();window.removeEventListener("resize",resize);window.removeEventListener("keydown",keyDown);window.removeEventListener("keyup",keyUp);window.removeEventListener("blur",clearInput);document.removeEventListener("visibilitychange",visibility);document.removeEventListener("pointerdown",unlockAudio,true);document.removeEventListener("pointerdown",pointerMode,true);document.removeEventListener("keydown",unlockAudio,true);canvas.removeEventListener("pointerdown",pointer);canvas.removeEventListener("pointermove",movePointer);canvas.removeEventListener("pointerleave",leavePointer);canvas.removeEventListener("webglcontextlost",contextLost);engine.stopRenderLoop(tick);scene.dispose();engine.dispose();},
   };
 }

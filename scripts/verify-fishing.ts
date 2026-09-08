@@ -353,7 +353,7 @@ export function verifyFishing(): void {
   assert.equal(inventoryCatchSlot(bag, "carp"), 6, "an existing partial fish stack is reused");
 
   putFish(bag, 7, "sardine", 1);
-  assert.equal(inventoryCatchSlot(bag, "perch"), 8, "a different species falls through to an empty slot");
+  assert.equal(inventoryCatchSlot(bag, "perch"), 9, "a different species falls through to an empty slot");
 
   // full backpack: no stackable fish, no empty normal slot -> null
   const full = new InventoryModel();

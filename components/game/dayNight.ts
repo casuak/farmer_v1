@@ -1,5 +1,6 @@
 export const DAY_SECONDS=600;
-export const TIME_SCALES=[.25,.5,1,2,4,8,16] as const;
+export const TIME_SCALES=[.25,.5,1,2,4,8,16,32,64] as const;
+export const MIN_TIME_SCALE=.25,MAX_TIME_SCALE=64;
 export type ClockSnapshot={day:number;minutes:number};
 const wrap=(n:number,size:number)=>((n%size)+size)%size;
 const smooth=(a:number,b:number,n:number)=>{const t=Math.max(0,Math.min(1,(n-a)/(b-a)));return t*t*(3-2*t);};
@@ -19,7 +20,7 @@ export class DayNightClock {
   snapshot():ClockSnapshot{return {day:Math.floor(this.totalMinutes/1440)+1,minutes:wrap(this.totalMinutes,1440)};}
   update(seconds:number,scale=1){
     if(!Number.isFinite(seconds)||!Number.isFinite(scale))return;
-    this.totalMinutes+=Math.max(0,seconds)*1440/DAY_SECONDS*Math.max(0,Math.min(16,scale));
+    this.totalMinutes+=Math.max(0,seconds)*1440/DAY_SECONDS*Math.max(0,Math.min(MAX_TIME_SCALE,scale));
   }
   setHour(hour:number){
     if(Number.isFinite(hour))this.totalMinutes=Math.floor(this.totalMinutes/1440)*1440+wrap(hour,24)*60;

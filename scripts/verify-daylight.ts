@@ -4,7 +4,7 @@ import type { Scene } from "@babylonjs/core/scene";
 import type { Camera } from "@babylonjs/core/Cameras/camera";
 import type { buildWorld } from "../components/game/world";
 import type { createSpringLighting } from "../components/game/lighting";
-import { DayNightClock,DAY_SECONDS,TIME_SCALES,formatClock,solarAt } from "../components/game/dayNight";
+import { DayNightClock,DAY_SECONDS,MAX_TIME_SCALE,MIN_TIME_SCALE,TIME_SCALES,formatClock,solarAt } from "../components/game/dayNight";
 import { projectMapPoint } from "../components/game/mapProjection";
 import { hasVisibleFrame } from "../components/game/renderGuard";
 
@@ -16,6 +16,10 @@ export function verifyDaylight(scene:Scene,camera:Camera,world:ReturnType<typeof
   for(const scale of TIME_SCALES){const c=new DayNightClock();c.update(1,scale);assert(Math.abs(c.snapshot().minutes-480-2.4*scale)<.00001);}
   const day=clock.snapshot().day;clock.setHour(12);assert.equal(clock.snapshot().day,day,"Scrubbing time does not change the calendar day");
   clock.update(NaN);clock.setHour(Infinity);assert.equal(clock.hour,12);
+  for(const scale of [MIN_TIME_SCALE,MAX_TIME_SCALE,2.5,.75,12]){
+    const c=new DayNightClock();c.update(1,scale);assert(Math.abs(c.snapshot().minutes-480-2.4*scale)<.00001,`Arbitrary typed speed ${scale}× maps to real clock advance`);
+  }
+  const bounded=new DayNightClock();bounded.update(1,100);assert(Math.abs(bounded.snapshot().minutes-480-2.4*MAX_TIME_SCALE)<.00001,"The engine caps speed at the documented maximum");
   assert.deepEqual(solarAt(0),solarAt(24),"Midnight is continuous");
 
   // Compare the map to Babylon's actual camera rotation, not another map formula.

@@ -7,7 +7,7 @@ import { createFarmer } from "../components/game/character";
 import { createHeldTools } from "../components/game/farmView";
 import { FishingModel,FISHING,findFishingSpot,inventoryCatchSlot } from "../components/game/fishing";
 import { InventoryModel,type FishId } from "../components/game/inventory";
-import { createFishPixels,fishSpriteSVG } from "../components/game/fishSprites";
+import { createFishPixels,fishSpriteSVG,FISH_SPRITES } from "../components/game/fishSprites";
 import { createFishingView,catchFlyPosition,catchJumpPosition } from "../components/game/fishingView";
 import type { buildWorld } from "../components/game/world";
 
@@ -33,7 +33,7 @@ export function verifyFishingView(scene:Scene,camera:Camera,shadow:ShadowGenerat
   try{
     camera.getViewMatrix(true);camera.getProjectionMatrix(true);scene.updateTransformMatrix();
     const view=createFishingView(scene,camera,canvas,tools.rodTip),model=new FishingModel(()=>.25);assert.equal(appended,4);
-    for(const id of ["carp","perch","sardine","redSnapper"]){const tex=scene.textures.find(t=>t.name===`caught-fish-texture-${id}`)!;assert(tex.hasAlpha);tex.getInternalTexture()!.isReady=true;}
+    for(const id of ["carp","perch","sardine","redSnapper"] as FishId[]){const tex=scene.textures.find(t=>t.name===FISH_SPRITES[id])!;assert(tex.hasAlpha);if(tex.getInternalTexture())tex.getInternalTexture()!.isReady=true;}
     const count=scene.meshes.length;
     view.update(model.snapshot(),shore,0,0,true,spot,null);assert(view.charge.hidden);assert(view.biteSignal.hidden);
     assert(model.beginCharge());model.update(FISHING.chargeSeconds*.75);
@@ -57,7 +57,7 @@ export function verifyFishingView(scene:Scene,camera:Camera,shadow:ShadowGenerat
       assert(view.fish.isEnabled());assert(!view.bobber.isEnabled());assert(!view.line.isEnabled());assert(flight.hidden);
       const low=view.fish.position.y;view.update({...state,phaseTime:.5},shore,2.3,.016,motion,null,targetSlot);assert(view.fish.position.y>low,"Fish texture rises out of the water");
       const end=catchJumpPosition(spot,shore,1,!motion);assert(end.y>0);
-      view.update({...state,phaseTime:FISHING.jumpSeconds+.1},shore,3,.016,motion,null,targetSlot);assert(!view.fish.isEnabled());assert(!flight.hidden);assert.match(flight.src,/fish-.*\.svg$/);
+      view.update({...state,phaseTime:FISHING.jumpSeconds+.1},shore,3,.016,motion,null,targetSlot);assert(!view.fish.isEnabled());assert(!flight.hidden);assert.equal(flight.src,FISH_SPRITES[state.fish.id]);
       const before={...flight.style};view.update({...state,phaseTime:FISHING.jumpSeconds+.1},shore,3,0,motion,null,targetSlot);assert.deepEqual(flight.style,before,"Paused flight does not advance");
       view.update({...state,phaseTime:FISHING.catchSeconds},shore,3.8,.016,motion,null,targetSlot);assert.equal(Number.parseFloat(flight.style.left),200);assert.equal(Number.parseFloat(flight.style.top),270);
       assert(Math.abs(catchFlyPosition({x:10,y:20},{x:200,y:270},1,!motion).scale-.18)<1e-10);
@@ -69,5 +69,5 @@ export function verifyFishingView(scene:Scene,camera:Camera,shadow:ShadowGenerat
     for(const mesh of scene.meshes){const positions=mesh.getVerticesData("position");if(positions)assert(Array.from(positions).every(Number.isFinite));}
     farmer.root.dispose();
   }finally{if(doc)Object.defineProperty(globalThis,"document",doc);else Reflect.deleteProperty(globalThis,"document");}
-  console.log("Fishing view regression passed: real riverbank collision, initial rod and pose, identical SVG/RGBA assets, rise from water, projected inventory flight, pause/reduced motion, actual stack destination, one award, pooled meshes and DOM cleanup.");
+  console.log("Fishing view regression passed: real riverbank collision, initial rod and pose, legacy grid and shared generated PNG assets, rise from water, projected inventory flight, pause/reduced motion, actual stack destination, one award, pooled meshes and DOM cleanup.");
 }

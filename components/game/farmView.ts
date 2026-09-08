@@ -10,6 +10,7 @@ import { TOOLS,tileKey,tileCenter,worldToTile,type FarmTile,type TileInfo,type T
 import type { HandItem } from "./inventory";
 import { PICKAXE_TIP_LOCAL } from "./miningMotion";
 import { SWORD_BLADE_BASE,SWORD_BLADE_TIP } from "./swordMotion";
+import { FLASHLIGHT } from "./flashlight";
 
 function border(v:Voxels,x:number,z:number,size:number,y:number,color:string,thickness=.025) {
   for(const side of [-1,1]){
@@ -114,7 +115,7 @@ export function createHeldTools(scene:Scene,hand:TransformNode,shadow:ShadowGene
   const material=voxelMaterial(scene,"hand-tools"),root=new TransformNode("equipped-tool",scene);root.parent=hand;root.position.set(0,-.20,-.02);
   const muzzle=new TransformNode("pistol-muzzle",scene);muzzle.parent=root;muzzle.position.set(0,-.39,-.04);
   const tools=new Map<HandItem,Mesh>();
-  for(const tool of [...TOOLS,"pistol","sword","fishingRod","pickaxe"] as const){
+  for(const tool of [...TOOLS,"pistol","sword","fishingRod","pickaxe","flashlight"] as const){
     const v=new Voxels();
     if(tool==="hoe"){
       v.box(0,-.14,-.04,.07,.72,.07,"#bd925c");v.box(0,-.43,-.13,.31,.075,.26,"#839a93");v.box(0,-.47,-.23,.33,.10,.065,"#bad0bc");
@@ -126,6 +127,13 @@ export function createHeldTools(scene:Scene,hand:TransformNode,shadow:ShadowGene
       v.box(0,-.12,-.04,.07,.67,.07,"#b89160");v.box(-.16,-.40,-.04,.37,.07,.10,"#a2b8a7");v.box(-.36,-.36,-.04,.10,.12,.10,"#c5d4bb");v.box(-.41,-.27,-.04,.07,.11,.085,"#dce5cd");
     }else if(tool==="pistol"){
       v.box(0,-.15,-.04,.14,.38,.14,"#607078");v.box(0,-.18,-.12,.12,.32,.04,"#99aaa9");v.box(0,.03,.02,.12,.18,.18,"#967754");v.box(0,-.35,-.04,.08,.025,.07,"#35454b");
+    }else if(tool==="flashlight"){
+      // Rubber grip in the palm, mustard metal barrel and a broad silver bezel.
+      v.box(0,-.055,0,.135,.25,.135,"#465455");
+      for(const y of [-.13,-.075,-.02,.035])v.box(0,y,0,.148,.025,.148,"#66716a");
+      v.box(0,-.215,0,.17,.10,.17,"#d4ad57");v.box(0,-.28,0,.22,.06,.22,"#b99a55");
+      v.box(0,-.33,0,.25,.06,.25,"#75878a");v.box(0,-.36,0,.21,.014,.21,"#e8dfbd");
+      v.box(.077,-.08,-.018,.025,.062,.055,"#d8b560");
     }else if(tool==="fishingRod"){
       // Slim bamboo rod along local -Y (~1.5 m), gently bowed toward +Z, with a reel near the grip.
       v.box(0,-.08,0,.06,.28,.06,"#a97e47");
@@ -167,5 +175,9 @@ export function createHeldTools(scene:Scene,hand:TransformNode,shadow:ShadowGene
   const pickaxeTip=new TransformNode("pickaxe-tip",scene);pickaxeTip.parent=root;pickaxeTip.position.set(PICKAXE_TIP_LOCAL.x,PICKAXE_TIP_LOCAL.y,PICKAXE_TIP_LOCAL.z);
   const swordBase=new TransformNode("sword-blade-base",scene);swordBase.parent=root;swordBase.position.set(SWORD_BLADE_BASE.x,SWORD_BLADE_BASE.y,SWORD_BLADE_BASE.z);
   const swordTip=new TransformNode("sword-blade-tip",scene);swordTip.parent=root;swordTip.position.set(SWORD_BLADE_TIP.x,SWORD_BLADE_TIP.y,SWORD_BLADE_TIP.z);
-  return {muzzle,rodTip,pickaxeTip,swordBase,swordTip,select(tool:HandItem|null){for(const [id,mesh] of tools)mesh.setEnabled(id===tool);muzzle.setEnabled(tool==="pistol");}};
+  const flashlightTip=new TransformNode("flashlight-tip",scene);flashlightTip.parent=tools.get("flashlight")!;
+  flashlightTip.position.set(FLASHLIGHT.tip.x,FLASHLIGHT.tip.y,FLASHLIGHT.tip.z);
+  const lensMaterial=new StandardMaterial("flashlight-lens",scene);lensMaterial.disableLighting=true;lensMaterial.emissiveColor=Color3.FromHexString("#fff0cf").scale(1.25);
+  const lens=new Voxels().box(0,0,0,.165,.008,.165,"#fff6d8").build("flashlight-lens",scene,lensMaterial);lens.parent=flashlightTip;lens.receiveShadows=false;
+  return {muzzle,rodTip,pickaxeTip,swordBase,swordTip,flashlightTip,select(tool:HandItem|null){for(const [id,mesh] of tools)mesh.setEnabled(id===tool);muzzle.setEnabled(tool==="pistol");}};
 }

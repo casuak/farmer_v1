@@ -11,12 +11,12 @@ import type { buildWorld } from "../components/game/world";
 export function verifyActions(scene:Scene,world:ReturnType<typeof buildWorld>,shadow:ShadowGenerator){
   const bag=new InventoryModel();assert.equal(bag.hand,"hoe");bag.select(4);assert.equal(bag.hand,"pistol");bag.select(5);assert.equal(bag.hand,"sword");
   const original=bag.snapshot();assert(!bag.move(0,12).ok);assert.deepEqual(bag.snapshot(),original,"An invalid equipment drop never swaps or deletes either item");
-  assert(bag.move(12,8).ok);assert.equal(bag.slots[12],null);assert(bag.move(8,12).ok);assert.equal(bag.slots[12]!.id,"hat");
+  assert(bag.move(12,9).ok);assert.equal(bag.slots[12],null);assert(bag.move(9,12).ok);assert.equal(bag.slots[12]!.id,"hat");
   assert(bag.buyBackpack().ok);assert.equal(bag.slots[14]!.id,"backpack");assert.equal(bag.slots.length,BASE_SLOTS+8);
   assert(bag.move(0,BASE_SLOTS).ok);const packed=bag.snapshot();
-  assert(!bag.move(14,8).ok);assert.equal(bag.drop(14),null);assert(!bag.sell(14).ok);assert.deepEqual(bag.snapshot(),packed,"A full backpack cannot be detached, discarded or sold");
+  assert(!bag.move(14,9).ok);assert.equal(bag.drop(14),null);assert(!bag.sell(14).ok);assert.deepEqual(bag.snapshot(),packed,"A full backpack cannot be detached, discarded or sold");
   assert(bag.move(BASE_SLOTS,0).ok);assert(!bag.move(14,BASE_SLOTS).ok,"A backpack cannot contain itself");
-  assert(bag.move(14,8).ok);assert(!bag.backpack);assert.equal(bag.slots.length,BASE_SLOTS);assert(bag.move(8,14).ok);assert(bag.backpack);
+  assert(bag.move(14,9).ok);assert(!bag.backpack);assert.equal(bag.slots.length,BASE_SLOTS);assert(bag.move(9,14).ok);assert(bag.backpack);
   const full=new InventoryModel();for(let i=0;i<MAIN_SLOTS;i++)full.slots[i]={id:"wood",count:30};
   full.slots[12]=full.slots[13]=null;assert(!full.add([{id:"wood",count:1}]),"Empty equipment slots cannot silently accept storage items");
   const tiles=Array.from({length:7},(_,x)=>Array.from({length:7},(_,z)=>({x:x-3,z:z-3,kind:"dirt" as const}))).flat();

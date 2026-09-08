@@ -1,7 +1,8 @@
 "use client";
 import { Moon,Sun,Sunrise,Sunset,Pause,Play } from "lucide-react";
 import { Slider } from "@/components/ui/slider";
-import { DAY_SECONDS,TIME_SCALES,formatClock,timeOfDay,type ClockSnapshot } from "./dayNight";
+import { useState } from "react";
+import { DAY_SECONDS,MAX_TIME_SCALE,MIN_TIME_SCALE,TIME_SCALES,formatClock,timeOfDay,type ClockSnapshot } from "./dayNight";
 
 export function QuickTime({clock,paused,onPause,onTime}:{clock:ClockSnapshot;paused:boolean;onPause:()=>void;onTime:(hour:number)=>void}){
   return <section className="hud glass quick-time" aria-label="快捷调整时间">
@@ -10,14 +11,29 @@ export function QuickTime({clock,paused,onPause,onTime}:{clock:ClockSnapshot;pau
   </section>;
 }
 
+const formatRate=(rate:number)=>`${Number(rate.toFixed(3))}×`;
+const clampRate=(rate:number)=>Number(Math.min(MAX_TIME_SCALE,Math.max(MIN_TIME_SCALE,rate)).toFixed(3));
+const nearestRate=(rate:number)=>TIME_SCALES.reduce((best,value)=>Math.abs(value-rate)<Math.abs(best-rate)?value:best,TIME_SCALES[0]);
+
 export default function TimeControls({clock,scale,resumeScale,onScale,onTime}:{clock:ClockSnapshot;scale:number;resumeScale:number;onScale:(scale:number)=>void;onTime:(hour:number)=>void}){
   const chosenScale=scale||resumeScale,duration=DAY_SECONDS/chosenScale;
+  const [draft,setDraft]=useState<string|null>(null);
+  const rateText=draft??String(chosenScale);
+  const displayRate=Number.isFinite(scale)?Number(scale.toFixed(3)):0;
+  const paused=scale===0;
+  const commit=()=>{
+    if(draft===null)return;
+    const rate=Number(draft);
+    if(!Number.isFinite(rate)||rate===0){setDraft(null);return;}
+    const clamped=clampRate(rate);
+    setDraft(null);onScale(clamped);
+  };
   return <section className="time-controls" aria-label="昼夜与时间">
     <div className="time-controls-heading"><div><strong>昼夜与时间</strong><span>春 · {String(clock.day).padStart(2,"0")} 日 · {timeOfDay(clock.minutes/60)}</span></div><output>{formatClock(clock.minutes)}</output></div>
     <div className="time-presets">{[{label:"清晨",hour:6.5,Icon:Sunrise},{label:"正午",hour:12,Icon:Sun},{label:"黄昏",hour:18,Icon:Sunset},{label:"夜晚",hour:22,Icon:Moon}].map(({label,hour,Icon})=><button key={label} onClick={()=>onTime(hour)} title={`查看 ${formatClock(hour*60)} 的光影`}><Icon size={16}/>{label}</button>)}</div>
-    <div className="clock-rate-heading"><label>时间流速 <strong>{chosenScale}×</strong></label><button onClick={()=>onScale(scale===0?resumeScale:0)} aria-label={scale===0?"继续昼夜流逝":"暂停昼夜流逝"}>{scale===0?<Play size={14}/>:<Pause size={14}/>} {scale===0?"继续时间":"暂停时间"}</button></div>
-    <Slider min={0} max={TIME_SCALES.length-1} step={1} value={[Math.max(0,TIME_SCALES.findIndex(s=>s===chosenScale))]} onValueChange={v=>onScale(TIME_SCALES[v[0]])} aria-label="昼夜时间流速" aria-valuetext={`${chosenScale} 倍`}/>
-    <div className="clock-rate-caption"><span>0.25×</span><strong>{scale===0?"时间已暂停":`一天约 ${duration>=60?`${Number((duration/60).toFixed(2))} 分钟`:`${duration} 秒`}`}</strong><span>16×</span></div>
+    <div className="clock-rate-heading"><label>时间流速 <strong>{paused?"已暂停":formatRate(displayRate)}</strong></label><div className="rate-input-wrap"><input type="number" min={MIN_TIME_SCALE} max={MAX_TIME_SCALE} step={.25} value={rateText} inputMode="decimal" aria-label={`时间倍速，可输入 ${MIN_TIME_SCALE} 到 ${MAX_TIME_SCALE}`} onChange={event=>setDraft(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();commit();event.currentTarget.blur();}if(event.key==="Escape"){setDraft(null);event.currentTarget.blur();}}} onBlur={commit}/><button onClick={commit} aria-label="应用输入的时间倍速">应用</button></div><button onClick={()=>onScale(paused?resumeScale:0)} aria-label={paused?"继续昼夜流逝":"暂停昼夜流逝"}>{paused?<Play size={14}/>:<Pause size={14}/>} {paused?"继续时间":"暂停时间"}</button></div>
+    <Slider min={0} max={TIME_SCALES.length-1} step={1} value={[Math.max(0,TIME_SCALES.indexOf(nearestRate(chosenScale) as (typeof TIME_SCALES)[number]))]} onValueChange={v=>onScale(TIME_SCALES[v[0]])} aria-label="昼夜时间流速" aria-valuetext={`${chosenScale} 倍`}/>
+    <div className="clock-rate-caption"><span>{`${MIN_TIME_SCALE}×`}</span><strong>{paused?"时间已暂停":`一天约 ${duration>=60?`${Number((duration/60).toFixed(2))} 分钟`:`${duration} 秒`}`}</strong><span>{`${MAX_TIME_SCALE}×`}</span></div>
     <p>流速只影响昼夜。打开面板时游戏暂停，拖动时刻仍可预览光影。</p>
   </section>;
 }

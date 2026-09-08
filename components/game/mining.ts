@@ -3,10 +3,11 @@ import { ITEMS,type HandItem,type InventoryResult,type Stack } from "./inventory
 import { MINING_IMPACT_TIME,MINING_SWING_DURATION } from "./miningMotion";
 
 export type OreKind="copper"|"iron"|"crystal";
+/** Total yield per deposit: one primary ore per successful strike, stone on break. */
 export const ORES:Record<OreKind,{name:string;color:string;light:string;health:number;loot:readonly Stack[]}>= {
   copper:{name:"铜矿脉",color:"#d99458",light:"#ffd398",health:3,loot:[{id:"copperOre",count:3},{id:"stone",count:2}]},
-  iron:{name:"铁矿脉",color:"#a7c6d6",light:"#e1f3ff",health:4,loot:[{id:"ironOre",count:3},{id:"stone",count:3}]},
-  crystal:{name:"晶石矿簇",color:"#b39be5",light:"#efe1ff",health:5,loot:[{id:"crystal",count:2},{id:"stone",count:2}]},
+  iron:{name:"铁矿脉",color:"#a7c6d6",light:"#e1f3ff",health:4,loot:[{id:"ironOre",count:4},{id:"stone",count:3}]},
+  crystal:{name:"晶石矿簇",color:"#b39be5",light:"#efe1ff",health:5,loot:[{id:"crystal",count:5},{id:"stone",count:2}]},
 };
 export type OreSeed=Point&{id:string;kind:OreKind;size:number};
 // Fixed, discoverable deposits beside forest trails, never on a road or combat spawn.
@@ -71,7 +72,7 @@ export class MiningModel {
     return this.nodes.filter(n=>n.health>0&&distance(player,n)<=MINING_REACH&&((n.x-player.x)*dx+(n.z-player.z)*dz)/(distance(player,n)*length)>.60&&this.clearReach(player,this.contact(n,player))).sort((a,b)=>distance(player,a)-distance(player,b))[0]??null;
   }
   inspect(node:OreNode,player:Point,hand:HandItem|null):OreInfo{
-    const def=ORES[node.kind];return {id:node.id,kind:node.kind,name:def.name,color:def.color,health:node.health,maxHealth:def.health,respawn:Math.ceil(node.respawn),reachable:distance(player,node)<=MINING_REACH&&this.clearReach(player,this.contact(node,player)),equipped:hand==="pickaxe",hint:this.reason(node,player,hand)??"按住左键 / F / E 连续开采 · 矿物弹出落地后拾取",loot:def.loot.map(s=>`${ITEMS[s.id].name} ×${s.count}`).join(" · ")};
+    const def=ORES[node.kind];return {id:node.id,kind:node.kind,name:def.name,color:def.color,health:node.health,maxHealth:def.health,respawn:Math.ceil(node.respawn),reachable:distance(player,node)<=MINING_REACH&&this.clearReach(player,this.contact(node,player)),equipped:hand==="pickaxe",hint:this.reason(node,player,hand)??"按住左键 / F / E 连续开采 · 每镐弹出 1 颗矿石，落地后拾取",loot:def.loot.map(s=>`${ITEMS[s.id].name} ×${s.count}`).join(" · ")};
   }
   snapshot(player:Point,hand:HandItem|null,targetId?:string|null):MiningSnapshot{
     const node=this.get(this.swing?.nodeId??targetId)??(hand==="pickaxe"?this.nearest(player,3,true):null);
@@ -99,7 +100,9 @@ export class MiningModel {
       if(reason)impact={ok:false,message:reason,node,broken:false,loot:[],point:this.contact(node,player)};
       else{
         node.health--;const broken=node.health===0;if(broken)node.respawn=ORE_RESPAWN_SECONDS;
-        impact={ok:true,message:broken?`${ORES[node.kind].name}已敲碎`:`${ORES[node.kind].name} · 还需 ${node.health} 镐`,node,broken,loot:broken?ORES[node.kind].loot.map(s=>({...s})):[],point:this.contact(node,player)};
+        const definition=ORES[node.kind],loot:Stack[]=[{id:definition.loot[0].id,count:1}];
+        if(broken)loot.push(...definition.loot.slice(1).map(stack=>({...stack})));
+        impact={ok:true,message:broken?`${definition.name}已敲碎`:`${definition.name} · 还需 ${node.health} 镐`,node,broken,loot,point:this.contact(node,player)};
       }
     }
     if(swing.elapsed>=MINING_SWING_DURATION)this.swing=null;

@@ -1,18 +1,11 @@
 import type { FishId } from "./inventory";
+import { ITEM_SPRITES } from "./itemSprites";
 
-/**
- * Single source of truth for the fishing fish pixel art. One shared GRID (a
- * rounded, tapering head + belly and a forked triangular tail, an eye on the
- * head) plus per-species PALETTES drive both the on-disk /items/fish-*.svg
- * inventory icons and the Babylon RGBA textures from createFishPixels, so the
- * inventory icon and the in-world fish always match. Re-generate the SVG files
- * at any time with fishSpriteSVG(id). No external assets or downloads.
- */
+/** Fishing overlays and world catches use the same generated inventory art.
+ * The legacy grid helpers below remain for procedural ambient fish/tests only. */
 export const FISH_SPRITES:Record<FishId,string>={
-  carp:"/items/fish-carp.svg",
-  perch:"/items/fish-perch.svg",
-  sardine:"/items/fish-sardine.svg",
-  redSnapper:"/items/fish-redSnapper.svg",
+  carp:ITEM_SPRITES.carp,perch:ITEM_SPRITES.perch,
+  sardine:ITEM_SPRITES.sardine,redSnapper:ITEM_SPRITES.redSnapper,
 };
 
 export function isFishId(id:string):id is FishId{
